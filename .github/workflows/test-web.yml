@@ -3,6 +3,8 @@ name: Testar demo web Saint Seiya
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'preview/**'
   workflow_dispatch:
 
 concurrency:
