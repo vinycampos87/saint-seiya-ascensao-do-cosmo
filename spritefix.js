@@ -166,9 +166,9 @@
         const a=opponents[i],b=opponents[j];
         let dx=a.x-b.x,dy=a.y-b.y;
         let distance=Math.hypot(dx,dy);
-        if(distance>=107)continue;
+        if(distance>=165)continue;
         if(distance<1){dx=1;dy=.1;distance=1;}
-        const repel=(107-distance)*.37;
+        const repel=(165-distance)*.55;
         const sx=dx/distance*repel,sy=dy/distance*repel;
         a.x+=sx;a.y+=sy;b.x-=sx;b.y-=sy;
         fieldClamp(a);fieldClamp(b);
