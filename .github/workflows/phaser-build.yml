@@ -1,0 +1,53 @@
+name: Compilar e testar cliente original Phaser
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'phaser/**'
+      - '.github/workflows/phaser-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restaurar atlas originais, cenário e retrato
+        run: |
+          mkdir -p phaser/public/assets/seiya phaser/public/assets/enemy phaser/public/assets/scenes
+          cp assets/atlas_*.png phaser/public/assets/
+          cp assets/enemy.png phaser/public/assets/enemy/training_enemy.png
+          cp assets/arena_4k.webp phaser/public/assets/scenes/arena_santuario_4k.webp
+          cp assets/atlas_04.png phaser/public/assets/seiya/portrait.png
+          test "$(find phaser/public/assets -name '*.png' | wc -l)" -ge 39
+      - name: Instalar Phaser, React e Vite
+        working-directory: phaser
+        run: npm install --no-audit --no-fund
+      - name: Compilar projeto TypeScript
+        working-directory: phaser
+        run: npm run build
+      - name: Instalar testador Chromium
+        working-directory: phaser
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Iniciar build no servidor local
+        run: |
+          (cd phaser && python3 -m http.server 4175 --bind 127.0.0.1 --directory dist > /tmp/phaser.log 2>&1 &)
+          sleep 3
+      - name: Testar Phaser real e salvar captura
+        working-directory: phaser
+        run: node test/smoke.mjs
+      - name: Guardar evidência da versão Phaser
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: teste-phaser-original-v07
+          path: |
+            phaser/test/output/phaser-v07.png
+            phaser/dist/index.html
