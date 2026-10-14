@@ -105,6 +105,7 @@ export default function App() {
         sc => {
           if (!mounted) return;
           scene.current = sc;
+          Object.assign(window, { __ascensaoScene: sc }); // leitura nos testes de integração
           sc.report = next => {
             if (mounted) setSnapshot(next);
           };
