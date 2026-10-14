@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: screenshot-qa-main
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -42,6 +46,8 @@ jobs:
           git add preview/arena-v061.jpg
           if ! git diff --cached --quiet; then
             git commit -m "test: atualizar captura QA v0.6.1"
+            git fetch origin main
+            git rebase origin/main
             git push
           fi
       - uses: actions/upload-artifact@v4
