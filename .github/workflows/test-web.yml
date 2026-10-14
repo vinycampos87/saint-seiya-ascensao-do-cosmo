@@ -25,6 +25,7 @@ jobs:
         run: |
           node --check game.js
           node --check spritefix.js
+          node --check grounded-v062.js
           node --check tests/smoke.cjs
       - name: Instalar testador Chromium
         run: |
@@ -40,12 +41,12 @@ jobs:
         if: success()
         run: |
           mkdir -p preview
-          cp tests/output/arena.jpg preview/arena-v061.jpg
+          cp tests/output/arena.jpg preview/arena-v062.jpg
           git config user.name "ss-qa-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add preview/arena-v061.jpg
+          git add preview/arena-v062.jpg
           if ! git diff --cached --quiet; then
-            git commit -m "test: atualizar captura QA v0.6.1"
+            git commit -m "test: atualizar captura QA v0.6.2"
             git fetch origin main
             git rebase origin/main
             git push
@@ -53,6 +54,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: captura-jogo-v061
+          name: captura-jogo-v062
           path: tests/output/arena.png
           if-no-files-found: ignore
