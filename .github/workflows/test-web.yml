@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   web-smoke:
@@ -32,6 +32,18 @@ jobs:
           sleep 2
       - name: Testar movimento, sprites e enfermaria
         run: node tests/smoke.cjs
+      - name: Guardar captura de QA
+        if: success()
+        run: |
+          mkdir -p preview
+          cp tests/output/arena.jpg preview/arena-v061.jpg
+          git config user.name "ss-qa-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add preview/arena-v061.jpg
+          if ! git diff --cached --quiet; then
+            git commit -m "test: atualizar captura QA v0.6.1"
+            git push
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
