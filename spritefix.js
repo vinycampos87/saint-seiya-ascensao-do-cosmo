@@ -193,6 +193,15 @@
     }
     return true;
   };
+  // A aplicação antiga vinculou botões antes de carregar este patch.
+  // Captura os cliques para impedir execução DUPLA do ataque antigo.
+  for(const id of ['attackBtn','touchAttack']){
+    const control=$(id);
+    if(control) control.addEventListener('click',ev=>{
+      ev.stopImmediatePropagation();
+      attack();
+    },true);
+  }
   // Controles: não permitir que um botão focado roube as teclas de movimento.
   const stage=$('world');
   stage.setAttribute('tabindex','0');
