@@ -49,9 +49,33 @@ const {setTimeout:delay}=require('node:timers/promises');
   assert.equal((await page.evaluate(()=>window.__saintSeiyaDiagnostics.state)).direction,'down');
   // Os frames carregados devem conter personagem visível.
   await page.waitForTimeout(400);
-  const atlases=await page.evaluate(()=>window.__saintSeiyaDiagnostics.atlases);
-  assert(atlases.some(x=>x.key==='atlas_05'&&x.referenceHeight>20));
-  assert(atlases.some(x=>x.key==='enemy'&&x.referenceHeight>20));
+  // Teste de arte REAL: atlas, orientação e posição inferior do pé.
+  const grounding=await page.evaluate(()=>{
+    const map=window.__saintSeiyaDiagnostics.mapping.walk;
+    return Object.entries(map).map(([dir,id])=>{
+      const im=IMAGES['atlas_'+String(id).padStart(2,'0')];
+      const cn=document.createElement('canvas');
+      cn.width=im.naturalWidth;cn.height=im.naturalHeight;
+      const c=cn.getContext('2d',{willReadFrequently:true});c.drawImage(im,0,0);
+      const pixels=c.getImageData(0,0,cn.width,cn.height).data;
+      const bottoms=[];
+      for(let frame=0;frame<Math.floor(cn.width/128);frame++){
+        let bottom=-1;
+        for(let y=0;y<128;y++)for(let x=0;x<128;x++){
+          const alpha=pixels[((y*cn.width)+(frame*128)+x)*4+3];
+          if(alpha>90&&y>bottom)bottom=y;
+        }
+        bottoms.push(bottom);
+      }
+      return {dir,id,bottoms};
+    });
+  });
+  assert.deepEqual(Object.fromEntries(grounding.map(x=>[x.dir,x.id])),{down:6,left:7,up:8,right:9},
+      'Sprites de caminhada associados a direções erradas');
+  for(const item of grounding)assert(item.bottoms.every(y=>y===111),
+      'Pés não alinhados ao pivô do atlas: '+JSON.stringify(item));
+  assert.deepEqual(report.fixedPivot,[64,112],'Pivô do desenho precisa ser fixo');
+  assert(report.fixedScale>1&&report.fixedScale<3,'Escala inválida');
   const ui=await page.evaluate(()=>[...document.styleSheets].some(s=>s.href&&s.href.includes('epic-ui.css')));
   assert(ui,'CSS da interface épica não carregou');
   await page.evaluate(()=>{
@@ -75,5 +99,5 @@ const {setTimeout:delay}=require('node:timers/promises');
   await browser.close();
   assert.deepEqual(errors,[],'Erros JS');
   assert.deepEqual(failures,[],'Recursos HTTP inválidos');
-  console.log('✓ 41 recursos, 4 direções, movimento, sprites, UI, enfermaria e save OK');
+  console.log('✓ 41 recursos, pivô real, atlas por direção, caminhada, UI, enfermaria e save OK');
 })().catch(e=>{console.error(e);process.exit(1)});
