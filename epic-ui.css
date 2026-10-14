@@ -183,3 +183,11 @@ body{
 @media(prefers-reduced-motion:reduce){
  .action-button,.tool-btn{transition:none}
 }
+/* Retrato do Seiya no HUD: remove o ícone de xadrez provisório. */
+.compact-portrait{
+ font-size:0;
+ background-image:linear-gradient(0deg,#081827c4,transparent 40%),url('./assets/atlas_04.png');
+ background-size:100% 100%,195px auto;
+ background-position:center,center 25%;
+ background-repeat:no-repeat;
+}
