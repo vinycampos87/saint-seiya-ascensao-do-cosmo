@@ -1,0 +1,58 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+const page=await browser.newPage({viewport:{width:1600,height:960},deviceScaleFactor:1});
+const errors=[],missing=[];
+page.on('pageerror',e=>errors.push(e.message));
+page.on('response',r=>{if(r.status()>=400)missing.push(r.status()+' '+r.url())});
+try{
+ await page.goto('http://127.0.0.1:4175/',{waitUntil:'networkidle',timeout:75000});
+ await page.waitForFunction(()=>!!window.__ascensaoScene,{timeout:30000});
+ await page.waitForTimeout(1300);
+ const boot=await page.evaluate(()=>{
+  const sc=window.__ascensaoScene,p=sc.player;
+  return {active:sc.scene.isActive(),x:p.x,y:p.y,origin:[p.originX,p.originY],
+   dir:sc.facing,keys:['seiya_down_idle','seiya_left_run','seiya_right_run','seiya_up_run','seiya_down_4b','seiya_right_vfx'].map(k=>({k,exists:sc.textures.exists(k)})),
+   hasBackground:sc.textures.exists('sanctuaryArena4k'),enemy:sc.textures.exists('trainingEnemy')};
+ });
+ assert(boot.active,'Phaser não iniciou');
+ assert.deepEqual(boot.origin,[.5,.875],'Pivô do sprite não é 64/112');
+ assert(boot.keys.every(x=>x.exists),'Sprite faltando: '+JSON.stringify(boot.keys));
+ assert(boot.hasBackground&&boot.enemy,'Cenário ou inimigo ausente');
+ await page.keyboard.down('d'); await page.waitForTimeout(370);
+ let v=await page.evaluate(()=>({x:window.__ascensaoScene.player.x,dir:window.__ascensaoScene.facing,key:window.__ascensaoScene.player.texture.key}));
+ assert(v.x>boot.x+35&&v.dir==='right'&&v.key==='seiya_right_run','Direita não animou com sprite correto: '+JSON.stringify(v));
+ await page.keyboard.up('d');
+ await page.keyboard.down('a');await page.waitForTimeout(340);
+ v=await page.evaluate(()=>({x:window.__ascensaoScene.player.x,dir:window.__ascensaoScene.facing,key:window.__ascensaoScene.player.texture.key}));
+ assert(v.dir==='left'&&v.key==='seiya_left_run'&&v.x<boot.x+35,'Esquerda incorreta: '+JSON.stringify(v));
+ await page.keyboard.up('a');
+ await page.keyboard.down('w');await page.waitForTimeout(220);
+ v=await page.evaluate(()=>({y:window.__ascensaoScene.player.y,dir:window.__ascensaoScene.facing,key:window.__ascensaoScene.player.texture.key}));
+ assert(v.dir==='up'&&v.key==='seiya_up_run'&&v.y<boot.y-20,'Cima incorreto: '+JSON.stringify(v));
+ await page.keyboard.up('w');
+ await page.keyboard.down('s');await page.waitForTimeout(240);
+ v=await page.evaluate(()=>({dir:window.__ascensaoScene.facing,key:window.__ascensaoScene.player.texture.key}));
+ assert(v.dir==='down'&&v.key==='seiya_down_run','Baixo incorreto: '+JSON.stringify(v));
+ await page.keyboard.up('s');
+ await page.evaluate(()=>{const sc=window.__ascensaoScene;sc.cosmo=100;sc.tryMeteor();});
+ await page.waitForTimeout(700);
+ const meteor=await page.evaluate(()=>({phase:window.__ascensaoScene.phase,key:window.__ascensaoScene.player.texture.key,vfx:window.__ascensaoScene.vfxSprite.visible}));
+ assert(meteor.phase==='4b'&&meteor.key==='seiya_down_4b'&&meteor.vfx,'Meteoro de Pégaso não disparou: '+JSON.stringify(meteor));
+ await page.evaluate(()=>{const sc=window.__ascensaoScene;sc.level=3;sc.xp=55;sc.drachmas=88;sc.enterInfirmary();});
+ await page.waitForTimeout(100);
+ let st=await page.evaluate(()=>({infirmary:window.__ascensaoScene.infirmary,level:window.__ascensaoScene.level,xp:window.__ascensaoScene.xp,drachmas:window.__ascensaoScene.drachmas}));
+ assert(st.infirmary&&st.level===3&&st.xp===55&&st.drachmas===88,'Perda de progresso na derrota');
+ await page.evaluate(()=>{const sc=window.__ascensaoScene;sc.healAtSanctuary();sc.returnToTraining();});
+ st=await page.evaluate(()=>({infirmary:window.__ascensaoScene.infirmary,level:window.__ascensaoScene.level,xp:window.__ascensaoScene.xp,drachmas:window.__ascensaoScene.drachmas}));
+ assert(!st.infirmary&&st.level===3&&st.xp===55&&st.drachmas===88,'Perda de progresso após tratamento');
+ await page.reload({waitUntil:'networkidle'}); await page.waitForFunction(()=>!!window.__ascensaoScene);
+ st=await page.evaluate(()=>({level:window.__ascensaoScene.level,xp:window.__ascensaoScene.xp,drachmas:window.__ascensaoScene.drachmas}));
+ assert(st.level===3&&st.xp===55&&st.drachmas===88,'Salvamento não persistiu');
+ fs.mkdirSync('test/output',{recursive:true});
+ await page.screenshot({path:'test/output/phaser-v07.png',fullPage:true});
+ assert.deepEqual(errors,[],'Erros JS: '+JSON.stringify(errors));
+ assert.deepEqual(missing,[],'Requisições HTTP inválidas: '+JSON.stringify(missing));
+ console.log('PASSOU: Phaser 3, React, cena 4K, sprites 4 direções, pivô fixo, Meteoro 4B e enfermaria/persistência.');
+}finally{await browser.close();}
