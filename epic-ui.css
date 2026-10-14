@@ -1,0 +1,185 @@
+/* ASCENSÃO DO COSMO — REFINAMENTO ÉPICO v0.6.1
+   Identidade grega em bronze, mármore e azul profundo; sem HUD futurista. */
+:root{
+ --gold:#dfb776;--gold2:#ffe7aa;--line:#c79a51a0;
+ --navy:#06101d;--muted:#becde0;
+}
+html{scroll-behavior:smooth}
+body{
+ background:
+  radial-gradient(ellipse 120% 42% at 50% -7%,#365071b5,transparent 70%),
+  repeating-linear-gradient(115deg,#090f1c 0 2px,#0c192c 2px 18px,#0c182a 18px 20px),
+  #060e1a;
+}
+.app{max-width:1960px;width:min(98.5%,1960px);padding:0 18px}
+.masthead{
+ height:100px;
+ border-bottom:2px solid transparent;
+ border-image:linear-gradient(90deg,transparent,#d8af66 20%,#fff0bc 50%,#d8af66 80%,transparent) 1;
+ background:radial-gradient(ellipse at 20% 0%,#35436473,transparent 60%);
+ position:relative;
+}
+.masthead:after{
+ content:'✦  ·  ✦  ·  ✦';
+ position:absolute;bottom:-11px;left:50%;transform:translateX(-50%);
+ color:#e8c98b;font-size:12px;background:#0b192b;padding:0 18px;letter-spacing:7px
+}
+.brandmark{
+ border:2px double #f1d5a1;background:radial-gradient(circle at 40% 35%,#6e5940,#152c41 60%,#050d1a);
+ box-shadow:inset 0 0 0 5px #0d1d32,0 0 0 2px #a17d4c70,0 4px 22px #0009;
+}
+.brand strong{
+ font-size:clamp(18px,1.8vw,29px);font-variant:small-caps;
+ color:#f8e8c8;text-shadow:0 2px 0 #000,0 0 16px #e5af6333;
+}
+.brand span{letter-spacing:5px}
+.brand small{color:#c3ac83}
+.scene-caption{padding:18px 4px 13px}
+.scene-caption h1{font:small-caps 33px/1.07 Georgia,'Times New Roman',serif;
+ color:#ffecc4;text-shadow:0 2px 10px #000a}
+.scene-caption .eyebrow{font-size:11px;letter-spacing:2.4px}
+.scene-notes span{
+ border-left:1px solid #cfaa6ba5;padding-left:14px;
+ color:#d8d1c2;
+}
+.battle{
+ border:4px solid #c39b60;
+ box-shadow:
+  0 0 0 1px #ffe0aa99,
+  0 0 0 8px #0c1c2e,
+  0 0 0 10px #ae89576b,
+  0 25px 42px #000c,
+  inset 0 0 0 2px #ffe5b68c;
+ border-radius:1px;
+ margin:7px 0 16px;
+}
+.battle:before,.battle:after{
+ position:absolute;content:'❖';width:28px;height:27px;
+ display:grid;place-items:center;
+ color:#f9dfac;z-index:5;pointer-events:none;
+ background:radial-gradient(circle,#705132 0,#1c2938 70%);
+ border:1px solid #deb374;
+ box-shadow:inset 0 0 0 2px #192536,0 2px 8px #000b;
+}
+.battle:before{top:5px;left:5px}.battle:after{top:5px;right:5px}
+.battle canvas{image-rendering:auto;outline:none;cursor:crosshair}
+.battle canvas:focus-visible{outline:3px solid #e8ca8e;outline-offset:-5px}
+.battle-shade-top{height:128px;background:linear-gradient(#081222cf,transparent)}
+.battle-shade-bottom{height:130px;background:linear-gradient(transparent,#071522ad)}
+.combat-hud{top:18px;left:19px;right:19px}
+.compact-portrait{
+ width:78px;height:91px;
+ border:2px solid #d6b174;
+ color:#f9d38d;
+ background:linear-gradient(155deg,#152b45,#091726 65%,#382b20);
+ box-shadow:inset 0 0 0 4px #06111c,0 2px 16px #000b;
+}
+.combat-status{
+ background:linear-gradient(135deg,#142c42f0,#071725f5);
+ padding:12px 16px;width:333px;
+ border:2px double #b8945d;
+ box-shadow:inset 0 0 0 2px #101e2a,0 12px 24px #0006;
+ border-radius:0 9px 2px 2px;
+}
+.combat-name{font-family:Georgia,serif;font-size:17px}
+.combat-name small{font-family:Arial,sans-serif;letter-spacing:.8px}
+.combat-name em{border:1px solid #ddba70;padding:4px 7px;color:#ffe2a6}
+.hud-meter{height:11px;border:1px solid #e3b97691;border-radius:1px;background:#090d13}
+.hud-meter>div{background:linear-gradient(90deg,#911e35,#f56b68 63%,#ffbaa0)}
+.hud-meter.cosmo>div{background:linear-gradient(90deg,#15457a,#2a95d2,#a8ecff)}
+.hud-meter.cosmo{height:8px}
+.hud-right{
+ background:linear-gradient(140deg,#0d2539f1,#06121ef5);
+ padding:13px 20px;border:2px double #bb975d;
+ box-shadow:inset 0 0 0 3px #112332,0 10px 24px #0008;
+ border-radius:9px 0 2px 2px;
+}
+.hud-right .target{letter-spacing:1.3px;color:#ffdba0}
+.stage-label{background:#061725bb;padding:7px 12px;
+ border-left:2px solid #e2bd80;
+ bottom:15px;left:17px;
+ font-size:12px;letter-spacing:1.2px;color:#fff1d8}
+.bottom-note{background:#061725b3;padding:7px 10px;border-right:2px solid #e2bd80;
+ bottom:15px;right:17px}
+.actionbar{
+ background:linear-gradient(90deg,#0d2339,#071423 53%,#11253b);
+ border:1px solid #ac8553a6;
+ box-shadow:inset 0 0 0 2px #233449,0 8px 20px #0008;
+ padding:11px 13px;margin:17px 0 13px;
+}
+.action-button,.tool-btn{
+ border:1px solid #b39564;
+ border-bottom:3px solid #645034;border-radius:2px;
+ background:linear-gradient(165deg,#36506c,#172b42 35%,#0b1726 86%);
+ min-height:75px;
+ box-shadow:inset 0 2px 0 #ffdca125,inset 0 -2px 0 #0006,0 3px 8px #0006;
+ transition:filter .16s,transform .16s,border-color .16s;
+}
+.action-button:active,.tool-btn:active{transform:translateY(1px)}
+.action-button.cosmic{
+ background:linear-gradient(145deg,#1d466b,#15334d 30%,#071421 88%);
+ border-color:#9cbaa8;border-bottom-color:#376075;
+}
+.action-button .action-icon{font-size:32px}
+.action-button strong{font-family:Georgia,serif;font-size:13px}
+.action-button small{font-size:10px}
+.action-button.cosmic .action-icon{color:#a8e6f6}
+.tool-btn{min-width:96px}
+.tool-btn.active{border-color:#f6cf8b}
+.panels{grid-template-columns:1.33fr 1.13fr .86fr;gap:14px}
+.panel{
+ min-height:190px;
+ background:linear-gradient(150deg,#1c344b 0,#0a192b 39%,#081522 100%);
+ border:1px solid #b59360;border-top:3px solid #c7a269;
+ box-shadow:inset 0 0 0 3px #0b1d30,inset 0 0 0 4px #d0ad6a16,0 10px 18px #0007;
+ padding:18px 19px;
+ position:relative;
+}
+.panel:after{
+ content:'◇';
+ color:#d3aa72;position:absolute;top:8px;right:8px;
+ font-size:11px;opacity:.9;
+}
+.panel-title{border-bottom:1px solid #d5aa67a1}
+.panel-title>span{font-family:Georgia,serif;font-size:12px;letter-spacing:1.3px;color:#ffe3a7}
+.identity>strong{font:small-caps 28px Georgia,serif;color:#f7e7c7}
+.avatar{border:2px solid #d3af6e;box-shadow:inset 0 0 15px #cba15b26}
+.avatar img{object-fit:contain}
+.quest-panel h3{font-variant:small-caps;font-size:23px}
+.infirmary{background:radial-gradient(ellipse at 50% 45%,#142e46ed,#030c1cee 73%)}
+.inf-card{
+ border:3px double #dcb982;
+ background:
+  linear-gradient(90deg,#d1aa7440 0 3px,transparent 3px calc(100% - 3px),#d1aa7440 calc(100% - 3px)),
+  radial-gradient(ellipse at top,#2b4761,#071624 72%);
+ box-shadow:0 0 0 6px #071827,0 0 0 7px #e0b67499,0 35px 80px #000e;
+}
+.inf-card h2{color:#ffebc3;text-shadow:0 2px 5px #000}
+.inf-symbol{color:#ffe4aa}
+@media(max-width:1150px){
+ .app{width:100%;padding:0 12px}
+ .panels{grid-template-columns:1fr 1fr}
+ .commands-panel{grid-column:span 2}
+ .action-button{width:205px}
+}
+@media(max-width:650px){
+ .app{padding:0 7px}
+ .masthead{height:72px}
+ .brand strong{font-size:15px}
+ .brandmark{width:45px;height:45px}
+ .scene-caption h1{font-size:23px}
+ .scene-notes{display:none}
+ .battle{border:2px solid #c39b60;margin:6px 0}
+ .combat-hud{top:8px;left:9px;right:9px;gap:5px}
+ .combat-status{width:157px;padding:6px}
+ .combat-name{font-size:10px}
+ .hud-right{width:122px;padding:7px 6px}
+ .actionbar{padding:6px;gap:6px}
+ .action-button,.tool-btn{min-height:55px}
+ .panel{padding:12px}
+ .stage-label,.bottom-note{font-size:7px;padding:4px;bottom:5px}
+ .panel-title>span{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+ .action-button,.tool-btn{transition:none}
+}
