@@ -71,6 +71,7 @@ const {setTimeout:delay}=require('node:timers/promises');
   await page.waitForTimeout(350);
   fs.mkdirSync('tests/output',{recursive:true});
   await page.screenshot({path:'tests/output/arena.png',fullPage:true});
+  await page.screenshot({path:'tests/output/arena.jpg',type:'jpeg',quality:65,fullPage:true});
   await browser.close();
   assert.deepEqual(errors,[],'Erros JS');
   assert.deepEqual(failures,[],'Recursos HTTP inválidos');
