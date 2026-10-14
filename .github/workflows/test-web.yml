@@ -3,8 +3,12 @@ name: Testar demo web Saint Seiya
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'preview/**'
+    paths:
+      - 'game.js'
+      - 'spritefix.js'
+      - 'game.css'
+      - 'epic-ui.css'
+      - '.github/workflows/test-web.yml'
   workflow_dispatch:
 
 concurrency:
