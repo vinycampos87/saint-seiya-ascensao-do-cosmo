@@ -67,15 +67,17 @@ try{
    let mirrorDiff=0;
    for(let y=0;y<128;y++)for(let x=0;x<128;x++)
      if(left.rgba[(y*128+x)*4+3]!==right.rgba[(y*128+(127-x))*4+3])mirrorDiff++;
-   return {seiya:bbox(seiya),cap:bbox(cap),mirrorDiff,
-     attackLeft:sc.textures.get('seiya_left_attack3').getSourceImage().src,
-     attackRight:sc.textures.get('seiya_right_attack3').getSourceImage().src};
+   return {seiya:bbox(seiya),cap:bbox(cap),mirrorDiff};
  });
  assert(visual.cap.height>=visual.seiya.height*1.02&&visual.cap.height<=visual.seiya.height*1.20,
     'Capitao desproporcional: '+JSON.stringify(visual));
  assert.equal(visual.mirrorDiff,0,'Idle lateral com pe cortado: '+JSON.stringify(visual));
- assert(visual.attackLeft.includes('atlas_22')&&visual.attackRight.includes('atlas_19'),
-    'Ataque lateral invertido ou com pernas fantasma: '+JSON.stringify(visual));
+ // Phaser converte as imagens em URLs blob:; confira os IDs nos fontes TS.
+ const manifest=fs.readFileSync('src/shared/assetManifest.ts','utf8');
+ assert(manifest.includes('attack3: {down:6,left:22,right:19,up:30}') &&
+        manifest.includes("'4b': {down:24,left:31,right:25,up:32}") &&
+        manifest.includes("'4c': {down:13,left:22,right:15,up:16}"),
+    'Um ataque lateral voltou a usar atlas invertido ou com membros fantasma');
 
  await page.keyboard.down('d'); await page.waitForTimeout(150);
  await page.evaluate(()=>{for(let i=0;i<12;i++)window.__ascensaoScene.update(0,50);});
