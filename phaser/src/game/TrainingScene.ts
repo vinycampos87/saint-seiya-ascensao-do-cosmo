@@ -13,7 +13,7 @@ export type GameSnapshot = {
 };
 
 export type SceneSettings = { auto: boolean; vfx: boolean; debug: boolean };
-type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number; attackKind: 'punch' | 'shield' | null; attackCount: number; attackUntil: number; shield: Phaser.GameObjects.Image; faceLeft: boolean };
+type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number; attackKind: 'kick' | null; attackUntil: number; faceLeft: boolean };
 type Phase = 'idle' | 'run' | 'attack1' | 'attack2' | 'attack3' | '4a' | '4b' | '4c' | 'hurt' | 'dead';
 type AttackData = { stage: 'attack1' | 'attack2' | 'attack3'; start: number; applied: boolean; duration: number; hitAt: number; dir: Direction };
 type MeteorData = { start: number; dir: Direction; hitUntil: number; lastHit: number; totalTicks: number };
@@ -92,8 +92,6 @@ export class TrainingScene extends Phaser.Scene {
     this.load.spritesheet('captainEnemyIdle', 'assets/enemy/captain_idle.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('captainEnemyRun', 'assets/enemy/captain_run.png', { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet('captainEnemyAttack', 'assets/enemy/captain_attack.png', { frameWidth: 128, frameHeight: 128 });
-    this.load.spritesheet('captainEnemyShieldAttack', 'assets/enemy/captain_shield_attack.png', { frameWidth: 128, frameHeight: 128 });
-    this.load.image('captainShield', 'assets/enemy/captain_shield.png');
   }
 
   create(): void {
@@ -148,12 +146,11 @@ export class TrainingScene extends Phaser.Scene {
     const spot = SPOTS[seed % SPOTS.length];
     const x=spot.x, y=spot.y;
     const sprite=this.add.sprite(x,y,'captainEnemyIdle',0).setOrigin(.5,.875).setDepth(y);
-    // Os sprites originais de perfil olham para a DIREITA sem flip.
-    // Espelhar somente quando o alvo esta a esquerda.
+    // Os atlas processados foram espelhados para olhar para a DIREITA.
+    // Com flipX = true, o Capitao passa a olhar para a ESQUERDA.
     const faceLeft = x > this.player.x;
     sprite.setFlipX(faceLeft);
-    const shield=this.add.image(x+(faceLeft?-26:26),y-58,'captainShield').setOrigin(.5).setScale(1.20).setVisible(true).setFlipX(faceLeft).setDepth(y+14);
-    this.enemyList.push({sprite,shield,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackCount:0,attackUntil:0,faceLeft});
+    this.enemyList.push({sprite,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackUntil:0,faceLeft});
   }
 
   private blocked(x:number,y:number,r:number):boolean {
@@ -313,7 +310,7 @@ export class TrainingScene extends Phaser.Scene {
     e.hitUntil=this.simMs+110;
     if(e.hp<=0){
       e.alive=false;this.kills++;this.drachmas+=12;this.xp+=35;this.cosmo=gainCosmo(this.cosmo,10);
-      e.sprite.setTint(0xe69a63); e.shield.setVisible(false); e.shield.destroy();
+      e.sprite.setTint(0xe69a63);
       this.tweens.add({targets:e.sprite,alpha:0,scale:0.65,duration:320,onComplete:()=>e.sprite.destroy()});
       while(this.xp>=XP_FOR_NEXT_LEVEL(this.level)){this.xp-=XP_FOR_NEXT_LEVEL(this.level);this.level++;this.hp=clamp(this.hp+35,0,MAX_HP);this.lastAction=`Nível ${this.level}! +35 HP`;}
       this.spawnTimer=this.simMs+1800;
@@ -363,12 +360,8 @@ export class TrainingScene extends Phaser.Scene {
       e.sprite.setFlipX(e.faceLeft);
       if(attacking){
         const age=Math.max(0,time-e.lastAttack);
-        const shieldAttack=e.attackKind==='shield';
-        const texture=shieldAttack?'captainEnemyShieldAttack':'captainEnemyAttack';
-        if(e.sprite.texture.key!==texture)e.sprite.setTexture(texture,0);
+        if(e.sprite.texture.key!=='captainEnemyAttack')e.sprite.setTexture('captainEnemyAttack',0);
         e.sprite.setFrame(Math.min(7,Math.floor(age/70)));
-        // O escudo permanece no antebraco, inclusive nos socos comuns.
-        // A sua posicao e sincronizada com a animacao mais abaixo.
       } else {
         e.attackKind=null;
         const key=moving?'captainEnemyRun':'captainEnemyIdle';
@@ -379,7 +372,7 @@ export class TrainingScene extends Phaser.Scene {
         if(Math.abs(diff.x)>4)e.faceLeft=diff.x<0;
         e.sprite.setFlipX(e.faceLeft);
         e.lastAttack=time;
-        e.attackKind=e.attackCount++%2===0?'punch':'shield';
+        e.attackKind='kick';
         e.attackUntil=time+560;
         if(time-this.lastHitMs>530){
           this.hp=applyDamage(this.hp,8,MAX_HP);this.lastHitMs=time;
@@ -392,15 +385,6 @@ export class TrainingScene extends Phaser.Scene {
         }
       }
       e.sprite.setPosition(e.x,e.y).setDepth(e.y+8);
-      // O sprite do escudo e independente e acompanha o braco do Capitao.
-      // O escudo precisa seguir a MESMA direcao persistente do corpo.
-      const side=e.faceLeft?-1:1;
-      const shieldStrike=attacking&&e.attackKind==='shield'
-        ?Math.min(11,Math.max(0,(time-e.lastAttack)/48)):0;
-      const shieldBounce=moving?Math.sin(time/110+e.wanderOffset)*2:0;
-      e.shield.setVisible(true).setFlipX(e.faceLeft)
-        .setPosition(e.x+side*(26+shieldStrike),e.y-58+shieldBounce)
-        .setDepth(e.y+14);
     }
     if(this.enemyList.length>18)this.enemyList=this.enemyList.filter(e=>e.alive);
   }
@@ -481,7 +465,7 @@ export class TrainingScene extends Phaser.Scene {
     // R or the restart button never bypass the infirmary healing step.
     if(this.infirmary) return;
     // Stop tweens/events from the previous encounter and rebuild safely.
-    this.tweens.killAll(); this.time.removeAllEvents(); this.enemyList.forEach(e=>{e.sprite.destroy();e.shield.destroy();});this.enemyList=[];
+    this.tweens.killAll(); this.time.removeAllEvents(); this.enemyList.forEach(e=>{e.sprite.destroy();});this.enemyList=[];
     this.hitGfx.clear();this.shade.setPosition(PLAYER_START.x,PLAYER_START.y);
     this.player.setPosition(PLAYER_START.x,PLAYER_START.y).clearTint().setAlpha(1);this.vfxSprite.setVisible(false);
     // Reset only temporary encounter state; preserve level, XP, currency and health.
