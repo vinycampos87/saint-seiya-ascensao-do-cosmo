@@ -39,9 +39,44 @@ try{
    cleanIdles:['down','up','left','right'].every(d=>sc.textures.exists('seiya_'+d+'_idle_clean'))};
  });
  assert(boot.active,'Phaser não iniciou');
+ assert(await page.evaluate(()=>window.__ascensaoScene.enemyList.every(e=>e.shield.visible)),
+   'Capitao em descanso sem escudo no braco');
  assert.deepEqual(boot.origin,[.5,.875],'Pivô do sprite não é 64/112');
  assert(boot.keys.every(x=>x.exists),'Sprite faltando: '+JSON.stringify(boot.keys));
  assert(boot.hasBackground&&boot.enemy&&boot.cleanIdles,'Cenário ou sprites do Capitão/Seiya ausentes');
+ // QA de pixels: os dois pés dos idles são preservados por espelhamento,
+ // e a altura visivel do Capitao deve ser apenas levemente maior.
+ const visual=await page.evaluate(()=>{
+   const sc=window.__ascensaoScene;
+   const pixels=(key)=>{
+     const im=sc.textures.get(key).getSourceImage();
+     const canvas=document.createElement('canvas');canvas.width=im.width;canvas.height=im.height;
+     const ctx=canvas.getContext('2d',{willReadFrequently:true});
+     ctx.drawImage(im,0,0);return {width:im.width,height:im.height,rgba:ctx.getImageData(0,0,im.width,im.height).data};
+   };
+   const bbox=(im)=>{
+     let l=im.width,r=-1,t=im.height,b=-1;
+     for(let y=0;y<im.height;y++)for(let x=0;x<im.width;x++){
+       if(im.rgba[(y*im.width+x)*4+3]<35)continue;
+       l=Math.min(l,x);r=Math.max(r,x);t=Math.min(t,y);b=Math.max(b,y);
+     }
+     return {width:r-l+1,height:b-t+1};
+   };
+   const seiya=pixels('seiya_down_idle_clean'),cap=pixels('captainEnemyIdle');
+   const left=pixels('seiya_left_idle_clean'),right=pixels('seiya_right_idle_clean');
+   let mirrorDiff=0;
+   for(let y=0;y<128;y++)for(let x=0;x<128;x++)
+     if(left.rgba[(y*128+x)*4+3]!==right.rgba[(y*128+(127-x))*4+3])mirrorDiff++;
+   return {seiya:bbox(seiya),cap:bbox(cap),mirrorDiff,
+     attackLeft:sc.textures.get('seiya_left_attack3').getSourceImage().src,
+     attackRight:sc.textures.get('seiya_right_attack3').getSourceImage().src};
+ });
+ assert(visual.cap.height>=visual.seiya.height*1.02&&visual.cap.height<=visual.seiya.height*1.20,
+    'Capitao desproporcional: '+JSON.stringify(visual));
+ assert.equal(visual.mirrorDiff,0,'Idle lateral com pe cortado: '+JSON.stringify(visual));
+ assert(visual.attackLeft.includes('atlas_22')&&visual.attackRight.includes('atlas_19'),
+    'Ataque lateral invertido ou com pernas fantasma: '+JSON.stringify(visual));
+
  await page.keyboard.down('d'); await page.waitForTimeout(150);
  await page.evaluate(()=>{for(let i=0;i<12;i++)window.__ascensaoScene.update(0,50);});
  let v=await page.evaluate(()=>({x:window.__ascensaoScene.player.x,dir:window.__ascensaoScene.facing,key:window.__ascensaoScene.player.texture.key}));
@@ -92,7 +127,7 @@ try{
    return {key:e.sprite.texture.key,visible:e.shield.visible}
  });
  assert.equal(cap.key,'captainEnemyAttack','Soco do Capitão sem animação');
- assert.equal(cap.visible,false,'Escudo aparece no ataque sem escudo');
+ assert.equal(cap.visible,true,'Escudo desapareceu no soco comum');
  await page.evaluate(()=>{
    const sc=window.__ascensaoScene,e=sc.enemyList.find(a=>a.alive);
    e.attackKind='shield';e.lastAttack=sc.simMs-100;e.attackUntil=sc.simMs+300;
@@ -103,10 +138,10 @@ try{
    return {key:e.sprite.texture.key,visible:e.shield.visible}
  });
  assert.equal(cap.key,'captainEnemyShieldAttack','Ataque com escudo não usou spritesheet correto');
- assert.equal(cap.visible,true,'Escudo do Capitão não está visível');
+ assert.equal(cap.visible,true,'Escudo desapareceu no ataque especial');
  await page.evaluate(()=>{
    const sc=window.__ascensaoScene,e=sc.enemyList.find(a=>a.alive);
-   e.attackKind=null;e.shield.setVisible(false);
+   e.attackKind=null;
  });
  await page.evaluate(()=>{const sc=window.__ascensaoScene;sc.cosmo=100;sc.tryMeteor();});
  await page.waitForTimeout(120);
@@ -151,5 +186,5 @@ try{
  await page.screenshot({path:'test/output/phaser-v07.png',fullPage:true});
  assert.deepEqual(errors,[],'Erros JS: '+JSON.stringify(errors));
  assert.deepEqual(missing,[],'Requisições HTTP inválidas: '+JSON.stringify(missing));
- console.log('PASSOU: Phaser fullscreen, dropdown, HUD compacto, Seiya idle fixo 4 direções, Capitão ataque/escudo, Meteoro 4B, derrota real, enfermaria clicável e save.');
+ console.log('PASSOU: Seiya idle com pes completos em 4 direcoes, ataques laterais corretos, Capitao maior e escudo permanente, Meteoro, enfermaria e save.');
 }finally{await browser.close();}
