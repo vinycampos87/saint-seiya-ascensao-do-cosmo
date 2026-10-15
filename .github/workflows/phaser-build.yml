@@ -8,6 +8,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# Evita que compilacoes antigas sobrescrevam a versao mais recente.
+concurrency:
+  group: phaser-pages-main
+  cancel-in-progress: true
 jobs:
   build-and-smoke:
     runs-on: ubuntu-latest
