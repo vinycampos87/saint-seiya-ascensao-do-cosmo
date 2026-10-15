@@ -13,7 +13,7 @@ export type GameSnapshot = {
 };
 
 export type SceneSettings = { auto: boolean; vfx: boolean; debug: boolean };
-type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number; attackKind: 'punch' | 'shield' | null; attackCount: number; attackUntil: number; shield: Phaser.GameObjects.Image };
+type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number; attackKind: 'punch' | 'shield' | null; attackCount: number; attackUntil: number; shield: Phaser.GameObjects.Image; faceLeft: boolean };
 type Phase = 'idle' | 'run' | 'attack1' | 'attack2' | 'attack3' | '4a' | '4b' | '4c' | 'hurt' | 'dead';
 type AttackData = { stage: 'attack1' | 'attack2' | 'attack3'; start: number; applied: boolean; duration: number; hitAt: number; dir: Direction };
 type MeteorData = { start: number; dir: Direction; hitUntil: number; lastHit: number; totalTicks: number };
@@ -148,9 +148,12 @@ export class TrainingScene extends Phaser.Scene {
     const spot = SPOTS[seed % SPOTS.length];
     const x=spot.x, y=spot.y;
     const sprite=this.add.sprite(x,y,'captainEnemyIdle',0).setOrigin(.5,.875).setDepth(y);
-    sprite.setFlipX(x>this.player.x);
-    const shield=this.add.image(x+26,y-58,'captainShield').setOrigin(.5).setScale(1.20).setVisible(true).setDepth(y+14);
-    this.enemyList.push({sprite,shield,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackCount:0,attackUntil:0});
+    // Os sprites originais de perfil olham para a DIREITA sem flip.
+    // Espelhar somente quando o alvo esta a esquerda.
+    const faceLeft = x > this.player.x;
+    sprite.setFlipX(faceLeft);
+    const shield=this.add.image(x+(faceLeft?-26:26),y-58,'captainShield').setOrigin(.5).setScale(1.20).setVisible(true).setFlipX(faceLeft).setDepth(y+14);
+    this.enemyList.push({sprite,shield,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackCount:0,attackUntil:0,faceLeft});
   }
 
   private blocked(x:number,y:number,r:number):boolean {
@@ -331,16 +334,28 @@ export class TrainingScene extends Phaser.Scene {
       if(e.hitUntil&&time>e.hitUntil){e.hitUntil=0;e.sprite.clearTint();}
       const diff={x:this.player.x-e.x,y:this.player.y-e.y};
       const d=Math.hypot(diff.x,diff.y);
-      const moving=d>75&&d<545;
-      if(moving){
+      // A folha original mistura poses frontais e de perfil. O novo atlas
+      // de corrida contem apenas poses laterais orientadas para a direita.
+      // Determinar a direcao visual pelo DESLOCAMENTO REAL evita moonwalk,
+      // inclusive quando o inimigo encosta no limite da arena.
+      const attacking=e.attackKind!==null && time<e.attackUntil;
+      const xBefore=e.x, yBefore=e.y;
+      const chasing=d>75&&d<545&&!attacking;
+      if(chasing){
         const v=normalize(diff.x,diff.y), step=ENEMY_SPEED*delta/1000;
         const xx=e.x+v.x*step,yy=e.y+v.y*step;
         if(!this.blocked(xx,e.y,e.radius))e.x=xx;
         if(!this.blocked(e.x,yy,e.radius))e.y=yy;
       }
-      // O Capitão fica orientado para o Seiya mesmo quando não está correndo.
-      e.sprite.setFlipX(diff.x<0);
-      const attacking=e.attackKind!==null && time<e.attackUntil;
+      const movedX=e.x-xBefore, movedY=e.y-yBefore;
+      const moving=Math.hypot(movedX,movedY)>0.05;
+      if(moving && Math.abs(movedX)>0.05){
+        e.faceLeft=movedX<0;
+      }else if(!moving && !attacking && Math.abs(diff.x)>4){
+        e.faceLeft=diff.x<0;
+      }
+      // Durante o golpe a orientacao fica travada ate terminar a animacao.
+      e.sprite.setFlipX(e.faceLeft);
       if(attacking){
         const age=Math.max(0,time-e.lastAttack);
         const shieldAttack=e.attackKind==='shield';
@@ -356,6 +371,8 @@ export class TrainingScene extends Phaser.Scene {
         e.sprite.setFrame(moving?Math.floor(time/105+e.wanderOffset)%8:0);
       }
       if(d<=84&&time-e.lastAttack>1650&&!this.meteor){
+        if(Math.abs(diff.x)>4)e.faceLeft=diff.x<0;
+        e.sprite.setFlipX(e.faceLeft);
         e.lastAttack=time;
         e.attackKind=e.attackCount++%2===0?'punch':'shield';
         e.attackUntil=time+560;
@@ -371,12 +388,12 @@ export class TrainingScene extends Phaser.Scene {
       }
       e.sprite.setPosition(e.x,e.y).setDepth(e.y+8);
       // O sprite do escudo e independente e acompanha o braco do Capitao.
-      // flipX espelha a armadura e o acessorio juntos quando muda o alvo.
-      const side=e.sprite.flipX?-1:1;
+      // O escudo precisa seguir a MESMA direcao persistente do corpo.
+      const side=e.faceLeft?-1:1;
       const shieldStrike=attacking&&e.attackKind==='shield'
         ?Math.min(11,Math.max(0,(time-e.lastAttack)/48)):0;
       const shieldBounce=moving?Math.sin(time/110+e.wanderOffset)*2:0;
-      e.shield.setVisible(true).setFlipX(e.sprite.flipX)
+      e.shield.setVisible(true).setFlipX(e.faceLeft)
         .setPosition(e.x+side*(26+shieldStrike),e.y-58+shieldBounce)
         .setDepth(e.y+14);
     }
