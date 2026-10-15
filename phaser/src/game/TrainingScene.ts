@@ -149,7 +149,7 @@ export class TrainingScene extends Phaser.Scene {
     const x=spot.x, y=spot.y;
     const sprite=this.add.sprite(x,y,'captainEnemyIdle',0).setOrigin(.5,.875).setDepth(y);
     sprite.setFlipX(x>this.player.x);
-    const shield=this.add.image(x,y-68,'captainShield').setOrigin(.5).setVisible(false).setDepth(y+9);
+    const shield=this.add.image(x+26,y-58,'captainShield').setOrigin(.5).setScale(1.20).setVisible(true).setDepth(y+14);
     this.enemyList.push({sprite,shield,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackCount:0,attackUntil:0});
   }
 
@@ -347,14 +347,10 @@ export class TrainingScene extends Phaser.Scene {
         const texture=shieldAttack?'captainEnemyShieldAttack':'captainEnemyAttack';
         if(e.sprite.texture.key!==texture)e.sprite.setTexture(texture,0);
         e.sprite.setFrame(Math.min(7,Math.floor(age/70)));
-        e.shield.setVisible(shieldAttack).setFlipX(e.sprite.flipX);
-        if(shieldAttack){
-          const side=e.sprite.flipX?-38:38;
-          e.shield.setPosition(e.x+side+Math.min(16,age/35)*(side>0?1:-1),e.y-67-Math.sin(Math.min(1,age/550)*Math.PI)*8);
-          e.shield.setDepth(e.y+15);
-        }
+        // O escudo permanece no antebraco, inclusive nos socos comuns.
+        // A sua posicao e sincronizada com a animacao mais abaixo.
       } else {
-        e.attackKind=null; e.shield.setVisible(false);
+        e.attackKind=null;
         const key=moving?'captainEnemyRun':'captainEnemyIdle';
         if(e.sprite.texture.key!==key)e.sprite.setTexture(key,0);
         e.sprite.setFrame(moving?Math.floor(time/105+e.wanderOffset)%8:0);
@@ -374,6 +370,15 @@ export class TrainingScene extends Phaser.Scene {
         }
       }
       e.sprite.setPosition(e.x,e.y).setDepth(e.y+8);
+      // O sprite do escudo e independente e acompanha o braco do Capitao.
+      // flipX espelha a armadura e o acessorio juntos quando muda o alvo.
+      const side=e.sprite.flipX?-1:1;
+      const shieldStrike=attacking&&e.attackKind==='shield'
+        ?Math.min(11,Math.max(0,(time-e.lastAttack)/48)):0;
+      const shieldBounce=moving?Math.sin(time/110+e.wanderOffset)*2:0;
+      e.shield.setVisible(true).setFlipX(e.sprite.flipX)
+        .setPosition(e.x+side*(26+shieldStrike),e.y-58+shieldBounce)
+        .setDepth(e.y+14);
     }
     if(this.enemyList.length>18)this.enemyList=this.enemyList.filter(e=>e.alive);
   }
