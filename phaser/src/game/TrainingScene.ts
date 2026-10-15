@@ -13,7 +13,7 @@ export type GameSnapshot = {
 };
 
 export type SceneSettings = { auto: boolean; vfx: boolean; debug: boolean };
-type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number };
+type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number; attackKind: 'punch' | 'shield' | null; attackCount: number; attackUntil: number; shield: Phaser.GameObjects.Image };
 type Phase = 'idle' | 'run' | 'attack1' | 'attack2' | 'attack3' | '4a' | '4b' | '4c' | 'hurt' | 'dead';
 type AttackData = { stage: 'attack1' | 'attack2' | 'attack3'; start: number; applied: boolean; duration: number; hitAt: number; dir: Direction };
 type MeteorData = { start: number; dir: Direction; hitUntil: number; lastHit: number; totalTicks: number };
@@ -31,6 +31,8 @@ export class TrainingScene extends Phaser.Scene {
   private enemyList: Enemy[] = [];
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private facing: Direction = 'down';
+  /** Preservada enquanto parado: NUNCA voltar automaticamente a left/down. */
+  private lastFacing: Direction = 'down';
   private phase: Phase = 'idle';
   private frameCounter = 0;
   private frameAccumulator = 0;
@@ -82,7 +84,16 @@ export class TrainingScene extends Phaser.Scene {
       });
     }
     this.load.image('sanctuaryArena4k', 'assets/scenes/arena_santuario_4k.webp');
-    this.load.spritesheet('trainingEnemy', 'assets/enemy/training_enemy.png', { frameWidth: 96, frameHeight: 96 });
+    // A animação idle original pode conter pixels de frames adjacentes;
+    // geramos uma cópia limpa de 1 quadro para cada direção.
+    for (const dir of dirs) {
+      this.load.image(`seiya_${dir}_idle_clean`, `assets/seiya_clean_idle/${dir}.png`);
+    }
+    this.load.spritesheet('captainEnemyIdle', 'assets/enemy/captain_idle.png', { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet('captainEnemyRun', 'assets/enemy/captain_run.png', { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet('captainEnemyAttack', 'assets/enemy/captain_attack.png', { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet('captainEnemyShieldAttack', 'assets/enemy/captain_shield_attack.png', { frameWidth: 128, frameHeight: 128 });
+    this.load.image('captainShield', 'assets/enemy/captain_shield.png');
   }
 
   create(): void {
@@ -90,7 +101,7 @@ export class TrainingScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
     this.drawWorld();
     this.shade = this.add.ellipse(0, 0, 64, 21, 0x000000, 0.32).setDepth(400);
-    this.player = this.add.sprite(PLAYER_START.x, PLAYER_START.y, spriteKey('down', 'idle'), 0).setOrigin(.5, .875).setDepth(695);
+    this.player = this.add.sprite(PLAYER_START.x, PLAYER_START.y, 'seiya_down_idle_clean', 0).setOrigin(.5, .875).setDepth(695);
     this.vfxSprite = this.add.sprite(PLAYER_START.x, PLAYER_START.y, spriteKey('down', 'vfx'), 0).setOrigin(.5, .5).setVisible(false).setAlpha(.91).setDepth(735);
     this.hitGfx = this.add.graphics().setDepth(10000);
     this.cameras.main.startFollow(this.player, true, .09, .09);
@@ -136,9 +147,10 @@ export class TrainingScene extends Phaser.Scene {
   private spawnEnemy(seed: number): void {
     const spot = SPOTS[seed % SPOTS.length];
     const x=spot.x, y=spot.y;
-    const sprite = this.add.sprite(x,y,'trainingEnemy',seed%10).setOrigin(.5,.92).setDepth(y);
-    sprite.setFlipX(x<this.player.x); // sprite source naturally faces right
-    this.enemyList.push({sprite,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123});
+    const sprite=this.add.sprite(x,y,'captainEnemyIdle',0).setOrigin(.5,.875).setDepth(y);
+    sprite.setFlipX(x>this.player.x);
+    const shield=this.add.image(x,y-68,'captainShield').setOrigin(.5).setVisible(false).setDepth(y+9);
+    this.enemyList.push({sprite,shield,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackCount:0,attackUntil:0});
   }
 
   private blocked(x:number,y:number,r:number):boolean {
@@ -197,20 +209,37 @@ export class TrainingScene extends Phaser.Scene {
           const d=distance({x:this.player.x,y:this.player.y},enemy);
           const v=normalize(enemy.x-this.player.x,enemy.y-this.player.y);
           desired=directionFromVector(v.x,v.y,this.facing);
-          this.facing=desired; // Skills activated in this branch need the freshly selected direction.
+          this.facing=desired; this.lastFacing=desired; // Direção escolhida pela IA persiste ao parar.
           if(d>99){motion=v}
           else if(this.cosmo>=METEOR_COST && this.lastMeteorMs+5200<time) this.tryMeteor();
           else if(time>this.lastAttackMs+ATTACK_DELAYS[clamp(this.comboIndex,0,2)]+100) this.tryAttack();
         }
       }
-      if(desired) this.facing=desired;
-      if(motion.x||motion.y){this.movePlayer(motion.x,motion.y,delta);this.setPhase('run')}
-      else if(!this.meteor&&!this.attack)this.setPhase('idle');
+      if(desired){this.facing=desired;this.lastFacing=desired;}
+      if(motion.x||motion.y) {
+        const x0=this.player.x,y0=this.player.y;
+        this.movePlayer(motion.x,motion.y,delta);
+        if(Math.hypot(this.player.x-x0,this.player.y-y0)>0.05)this.setPhase('run');
+        else this.setPhase('idle');
+      }else if(!this.meteor&&!this.attack) {
+        this.facing=this.lastFacing;
+        this.setPhase('idle');
+      }
     }
-    if(this.attack){this.advanceFrames(delta,ATTACK_DELAYS[[ 'attack1','attack2','attack3'].indexOf(this.attack.stage)]/8)}
-    else if(!this.meteor)this.advanceFrames(delta,this.phase==='run'?86:165);
-    if(!this.meteor&&this.phase!=='dead') this.vfxSprite.setVisible(false);
-    this.player.setTexture(spriteKey(this.facing, this.phase==='hurt'||this.phase==='dead'?'idle':this.phase), this.frameCounter%FRAME_COUNTS[this.phase==='hurt'||this.phase==='dead'?'idle':this.phase]);
+    if(this.attack) {
+      this.advanceFrames(delta,ATTACK_DELAYS[['attack1','attack2','attack3'].indexOf(this.attack.stage)]/8);
+    } else if(!this.meteor&&this.phase==='run') {
+      this.advanceFrames(delta,86);
+    }
+    if(!this.meteor&&this.phase!=='dead')this.vfxSprite.setVisible(false);
+    if(this.phase==='idle'||this.phase==='hurt'||this.phase==='dead') {
+      // Um único frame por direção elimina a aparição do pé fantasma.
+      this.frameCounter=0;
+      this.frameAccumulator=0;
+      this.player.setTexture(`seiya_${this.lastFacing}_idle_clean`,0);
+    }else{
+      this.player.setTexture(spriteKey(this.facing,this.phase),this.frameCounter%FRAME_COUNTS[this.phase]);
+    }
     this.player.setDepth(this.player.y+7);
     this.shade.setPosition(this.player.x,this.player.y-4).setDepth(this.player.y-11);
     this.updateEnemies(time,delta);
@@ -281,7 +310,7 @@ export class TrainingScene extends Phaser.Scene {
     e.hitUntil=this.simMs+110;
     if(e.hp<=0){
       e.alive=false;this.kills++;this.drachmas+=12;this.xp+=35;this.cosmo=gainCosmo(this.cosmo,10);
-      e.sprite.setTint(0xe69a63);
+      e.sprite.setTint(0xe69a63); e.shield.setVisible(false); e.shield.destroy();
       this.tweens.add({targets:e.sprite,alpha:0,scale:0.65,duration:320,onComplete:()=>e.sprite.destroy()});
       while(this.xp>=XP_FOR_NEXT_LEVEL(this.level)){this.xp-=XP_FOR_NEXT_LEVEL(this.level);this.level++;this.hp=clamp(this.hp+35,0,MAX_HP);this.lastAction=`Nível ${this.level}! +35 HP`;}
       this.spawnTimer=this.simMs+1800;
@@ -298,29 +327,49 @@ export class TrainingScene extends Phaser.Scene {
       this.spawnEnemy((this.kills+this.enemyList.length)%SPOTS.length);
       this.spawnTimer=time+3800;
     }
-    for (const e of living){
+    for(const e of living){
       if(e.hitUntil&&time>e.hitUntil){e.hitUntil=0;e.sprite.clearTint();}
       const diff={x:this.player.x-e.x,y:this.player.y-e.y};
       const d=Math.hypot(diff.x,diff.y);
-      let velocity=0;
-      if(d>75 && d<545){
-        velocity=ENEMY_SPEED*delta/1000;
-        const v=normalize(diff.x,diff.y);
-        const xx=e.x+v.x*velocity, yy=e.y+v.y*velocity;
+      const moving=d>75&&d<545;
+      if(moving){
+        const v=normalize(diff.x,diff.y), step=ENEMY_SPEED*delta/1000;
+        const xx=e.x+v.x*step,yy=e.y+v.y*step;
         if(!this.blocked(xx,e.y,e.radius))e.x=xx;
         if(!this.blocked(e.x,yy,e.radius))e.y=yy;
-        e.sprite.setFlipX(v.x<0);
-        e.sprite.setFrame(Math.floor(time/95+e.wanderOffset)%10);
-      } else e.sprite.setFrame(1);
-      if(d<=84&&time-e.lastAttack>1650 && !this.meteor){
+      }
+      // O Capitão fica orientado para o Seiya mesmo quando não está correndo.
+      e.sprite.setFlipX(diff.x<0);
+      const attacking=e.attackKind!==null && time<e.attackUntil;
+      if(attacking){
+        const age=Math.max(0,time-e.lastAttack);
+        const shieldAttack=e.attackKind==='shield';
+        const texture=shieldAttack?'captainEnemyShieldAttack':'captainEnemyAttack';
+        if(e.sprite.texture.key!==texture)e.sprite.setTexture(texture,0);
+        e.sprite.setFrame(Math.min(7,Math.floor(age/70)));
+        e.shield.setVisible(shieldAttack).setFlipX(e.sprite.flipX);
+        if(shieldAttack){
+          const side=e.sprite.flipX?-38:38;
+          e.shield.setPosition(e.x+side+Math.min(16,age/35)*(side>0?1:-1),e.y-67-Math.sin(Math.min(1,age/550)*Math.PI)*8);
+          e.shield.setDepth(e.y+15);
+        }
+      } else {
+        e.attackKind=null; e.shield.setVisible(false);
+        const key=moving?'captainEnemyRun':'captainEnemyIdle';
+        if(e.sprite.texture.key!==key)e.sprite.setTexture(key,0);
+        e.sprite.setFrame(moving?Math.floor(time/105+e.wanderOffset)%8:0);
+      }
+      if(d<=84&&time-e.lastAttack>1650&&!this.meteor){
         e.lastAttack=time;
+        e.attackKind=e.attackCount++%2===0?'punch':'shield';
+        e.attackUntil=time+560;
         if(time-this.lastHitMs>530){
           this.hp=applyDamage(this.hp,8,MAX_HP);this.lastHitMs=time;
           this.lastAction=this.hp===0?'Seiya caiu. A enfermaria do Santuário o receberá.':'Seiya recebeu 8 de dano.';
           this.player.setTint(0xff8080);
-          this.playerFlashUntil = time + 115;
+          this.playerFlashUntil=time+115;
           this.popNumber(this.player.x,this.player.y-85,'-8',0xff8585);
-          if(this.hp===0) this.enterInfirmary();
+          if(this.hp===0)this.enterInfirmary();
           else this.storeProgress();
         }
       }
@@ -405,11 +454,11 @@ export class TrainingScene extends Phaser.Scene {
     // R or the restart button never bypass the infirmary healing step.
     if(this.infirmary) return;
     // Stop tweens/events from the previous encounter and rebuild safely.
-    this.tweens.killAll(); this.time.removeAllEvents(); this.enemyList.forEach(e=>e.sprite.destroy());this.enemyList=[];
+    this.tweens.killAll(); this.time.removeAllEvents(); this.enemyList.forEach(e=>{e.sprite.destroy();e.shield.destroy();});this.enemyList=[];
     this.hitGfx.clear();this.shade.setPosition(PLAYER_START.x,PLAYER_START.y);
     this.player.setPosition(PLAYER_START.x,PLAYER_START.y).clearTint().setAlpha(1);this.vfxSprite.setVisible(false);
     // Reset only temporary encounter state; preserve level, XP, currency and health.
-    this.phase='idle';this.frameCounter=0;this.attack=null;this.meteor=null;this.facing='down';
+    this.phase='idle';this.frameCounter=0;this.attack=null;this.meteor=null;this.facing='down';this.lastFacing='down';this.player.setTexture('seiya_down_idle_clean',0);
     this.lastAttackMs=-99999;this.lastMeteorMs=-99999;this.lastHitMs=-99999;this.playerFlashUntil=0;this.comboIndex=-1;this.isPaused=false;
     this.simMs=0;this.lastHudMs=-99999;this.virtualMovement={x:0,y:0};
     this.lastAction='Arena reorganizada. Nível e XP preservados.';this.spawnTimer=0;this.spawnInitialEnemies();this.storeProgress();this.publish(true);
