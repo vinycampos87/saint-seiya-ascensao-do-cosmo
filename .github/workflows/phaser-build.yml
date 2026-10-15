@@ -23,10 +23,23 @@ jobs:
           cp assets/atlas_*.png phaser/public/assets/
           cp assets/arena_4k.webp phaser/public/assets/scenes/arena_santuario_4k.webp
           cp assets/atlas_04.png phaser/public/assets/seiya/portrait.png
-          curl --fail --location --retry 4 --retry-delay 2 --max-time 45 \
-            --user-agent 'Mozilla/5.0 (compatible; SanctuarySpriteBuilder/1.0)' \
-            'https://www.spriters-resource.com/resources/sheets/29/32123.png?updated=1460956361' \
-            --output phaser/tools/captain_source.png
+          # O host original pode aplicar 403 a servidores CI.
+          # Tenta um espelho de imagens e, em seguida, o arquivo direto.
+          SUCCESS=0
+          for URL in \
+            'https://wsrv.nl/?url=https%3A%2F%2Fwww.spriters-resource.com%2Fresources%2Fsheets%2F29%2F32123.png' \
+            'https://images.weserv.nl/?url=www.spriters-resource.com%2Fresources%2Fsheets%2F29%2F32123.png' \
+            'https://i0.wp.com/www.spriters-resource.com/resources/sheets/29/32123.png' \
+            'https://www.spriters-resource.com/resources/sheets/29/32123.png?updated=1460956361'; do
+            if curl --silent --show-error --fail --location --max-time 18 \
+              -A 'Mozilla/5.0' "$URL" -o phaser/tools/captain_source.png; then
+              if python3 -c "import struct; d=open('phaser/tools/captain_source.png','rb').read(); assert d[:8]==bytes([137,80,78,71,13,10,26,10]) and struct.unpack('>II',d[16:24])==(568,704)"; then
+                SUCCESS=1
+                break
+              fi
+            fi
+          done
+          test "$SUCCESS" = 1
           python3 -m pip install --quiet pillow
           python3 phaser/tools/process_sprites.py phaser/tools/captain_source.png
           test -s phaser/public/assets/enemy/captain_run.png
