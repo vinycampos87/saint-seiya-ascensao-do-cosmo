@@ -47,6 +47,14 @@ def clean_idle(dir,num):
     for y in range(CELL):
       for x in range(CELL):
         if (x,y) not in main: px[x,y]=(0,0,0,0)
+    # O idle RIGHT original possui um terceiro sapato (fantasma) na
+    # margem inferior esquerda. Esta parte esta conectada por pixels ao
+    # personagem e nao e removida pelo filtro de componentes isolados.
+    # A regiao mascarada esta fora dos dois pes reais do Seiya.
+    if dir == 'right':
+      for y in range(92, 116):
+        for x in range(0, 51):
+          px[x,y]=(0,0,0,0)
     out=PUBLIC/'seiya_clean_idle';out.mkdir(parents=True,exist_ok=True)
     frame.save(out/f'{dir}.png',optimize=True)
     print(f'SEIYA idle {dir}: pixels={len(main)} fragmentos removidos={len(comps)-1}')
@@ -84,7 +92,13 @@ def pack(name,source_frames):
       if mul<1:f=f.resize((round(f.width*mul),round(f.height*mul)),Image.Resampling.NEAREST)
       anchor=(CELL-f.width)//2, PIVOT[1]-f.height
       assert anchor[0]>=6 and anchor[1]>=4,(name,index,anchor,f.size)
-      result.alpha_composite(f,anchor[0:2] if False else anchor)
+      # O deslocamento de cada frame e obrigatorio. Sem index*CELL,
+      # todos os quadros se sobrepoem no primeiro slot do atlas.
+      result.alpha_composite(f,(index*CELL+anchor[0],anchor[1]))
+    for index in range(len(source_frames)):
+      cell=result.crop((index*CELL,0,(index+1)*CELL,CELL))
+      pixels=sum(1 for alpha in cell.getchannel('A').getdata() if alpha>30)
+      assert pixels>150, (name,index,'quadro vazio ou incompleto',pixels)
     dst=PUBLIC/'enemy';dst.mkdir(parents=True,exist_ok=True)
     target=dst/f'{name}.png'
     result.save(target,optimize=True)
