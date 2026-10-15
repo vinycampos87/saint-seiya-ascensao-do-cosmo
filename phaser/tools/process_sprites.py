@@ -36,8 +36,16 @@ def components_alpha(im:Image.Image):
     return sorted(out,key=len,reverse=True)
 
 def clean_idle(dir,num):
-    source=Image.open(PUBLIC/f'atlas_{num:02}.png').convert('RGBA')
-    frame=source.crop((0,0,CELL,CELL))
+    # A folha antiga de perfil esquerdo (atlas_03) tem um terceiro pe
+    # conectado ao resto do corpo. Cortar por coordenadas apaga pe real.
+    # A postura completa da direita (atlas_01) espelhada fornece a vista
+    # esquerda com DOIS pes inteiros, sem pintar nem apagar anatomia.
+    if dir == 'left':
+      source=Image.open(PUBLIC/'atlas_01.png').convert('RGBA')
+      frame=source.crop((0,0,CELL,CELL)).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    else:
+      source=Image.open(PUBLIC/f'atlas_{num:02}.png').convert('RGBA')
+      frame=source.crop((0,0,CELL,CELL))
     # Descarta ilhas desconectadas que vieram da célula vizinha;
     # conserva somente o corpo principal do Seiya.
     comps=components_alpha(frame)
@@ -47,14 +55,6 @@ def clean_idle(dir,num):
     for y in range(CELL):
       for x in range(CELL):
         if (x,y) not in main: px[x,y]=(0,0,0,0)
-    # O idle RIGHT original possui um terceiro sapato (fantasma) na
-    # margem inferior esquerda. Esta parte esta conectada por pixels ao
-    # personagem e nao e removida pelo filtro de componentes isolados.
-    # A regiao mascarada esta fora dos dois pes reais do Seiya.
-    if dir == 'right':
-      for y in range(92, 116):
-        for x in range(0, 51):
-          px[x,y]=(0,0,0,0)
     out=PUBLIC/'seiya_clean_idle';out.mkdir(parents=True,exist_ok=True)
     frame.save(out/f'{dir}.png',optimize=True)
     print(f'SEIYA idle {dir}: pixels={len(main)} fragmentos removidos={len(comps)-1}')
@@ -83,12 +83,14 @@ def split_row(im:Image.Image,y0:int,y1:int):
       if bbox:frames.append(f.crop(bbox))
     return frames
 
-def pack(name,source_frames):
+def pack(name,source_frames,scale):
     result=Image.new('RGBA',(CELL*len(source_frames),CELL),(0,0,0,0))
     for index,f in enumerate(source_frames):
       # Largura e altura diferentes no sheet original: recorta individualmente
       # e preserva um envelope vazio de 10px em cada lado.
-      mul=min(1,108/max(1,f.height),108/max(1,f.width))
+      # Escala uniforme partindo da altura do Seiya. Limite de 108 px
+      # na celula protege cabelo, punhos e botas sem variar pivô.
+      mul=min(scale,108/max(1,f.height),108/max(1,f.width))
       if mul<1:f=f.resize((round(f.width*mul),round(f.height*mul)),Image.Resampling.NEAREST)
       anchor=(CELL-f.width)//2, PIVOT[1]-f.height
       assert anchor[0]>=6 and anchor[1]>=4,(name,index,anchor,f.size)
@@ -114,10 +116,20 @@ def main():
           2:split_row(im,204,279),3:split_row(im,294,391)}
     assert [len(rows[i]) for i in [0,1,2,3]]==[10,8,7,8], \
       'Sprites desviaram do layout do original: '+str([len(rows[i]) for i in rows])
-    pack('captain_idle',[rows[0][0]])
-    pack('captain_run',[rows[0][i] for i in [4,5,6,7,8,9,7,5]])
-    pack('captain_attack',[rows[1][i] for i in range(8)])
-    pack('captain_shield_attack',[rows[3][i] for i in range(8)])
+    # Escala proporcional ao personagem jogavel: Capitao apenas 8% maior.
+    # Normaliza a altura do corpo de pe, e preserva o MESMO multiplicador
+    # em todos os quadros (exceto limite de seguranca da celula).
+    seiya=Image.open(PUBLIC/'seiya_clean_idle'/'down.png').convert('RGBA')
+    seiya_box=seiya.getbbox()
+    assert seiya_box is not None
+    seiya_height=seiya_box[3]-seiya_box[1]
+    captain_height=rows[0][0].height
+    scale=min(2.5,max(1.0,(seiya_height*1.08)/max(1,captain_height)))
+    print(f'ESCALA Capitao: Seiya={seiya_height}px Capitao-original={captain_height}px multiplicador={scale:.3f}')
+    pack('captain_idle',[rows[0][0]],scale)
+    pack('captain_run',[rows[0][i] for i in [4,5,6,7,8,9,7,5]],scale)
+    pack('captain_attack',[rows[1][i] for i in range(8)],scale)
+    pack('captain_shield_attack',[rows[3][i] for i in range(8)],scale)
     # Escudo destacado da área inferior da folha, animado junto com o ataque.
     shield=im.crop((0,586,36,619))
     pix=shield.load()
