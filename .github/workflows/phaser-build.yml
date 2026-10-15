@@ -78,7 +78,8 @@ jobs:
           cp phaser/public/assets/seiya_clean_idle/*.png assets/seiya_clean_idle/
           cp phaser/public/assets/scenes/arena_santuario_4k.webp assets/scenes/arena_santuario_4k.webp
           cp phaser/public/assets/seiya/portrait.png assets/seiya/portrait.png
-          git rm -f assets/enemy/training_enemy.png assets/enemy/captain_shield.png assets/enemy/captain_shield_attack.png || true
+          # --ignore-unmatch evita que um arquivo antigo ja ausente bloqueie a limpeza.
+          git rm -f --ignore-unmatch assets/enemy/training_enemy.png assets/enemy/captain_shield.png assets/enemy/captain_shield_attack.png
           git config user.name "saint-seiya-build-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html bundles assets/enemy assets/scenes assets/seiya assets/seiya_clean_idle
