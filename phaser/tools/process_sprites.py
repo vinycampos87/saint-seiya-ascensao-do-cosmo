@@ -128,7 +128,12 @@ def main():
     scale=min(2.5,max(1.0,(seiya_height*1.08)/max(1,captain_height)))
     print(f'ESCALA Capitao: Seiya={seiya_height}px Capitao-original={captain_height}px multiplicador={scale:.3f}')
     pack('captain_idle',[rows[0][0]],scale)
-    pack('captain_run',[rows[0][i] for i in [4,5,6,7,8,9,7,5]],scale)
+    # O material-fonte NAO possui uma corrida completa: a sequencia antiga
+    # misturava vistas frontal/lateral/costas no mesmo ciclo, criando moonwalk.
+    # Utilizar somente os dois quadros de perfil voltados para a direita.
+    # O espelhamento lateral e controlado no Phaser pela velocidade real.
+    side_walk=[rows[0][4],rows[0][5]]
+    pack('captain_run',[side_walk[i%2] for i in range(8)],scale)
     pack('captain_attack',[rows[1][i] for i in range(8)],scale)
     pack('captain_shield_attack',[rows[3][i] for i in range(8)],scale)
     # Escudo destacado da área inferior da folha, animado junto com o ataque.
