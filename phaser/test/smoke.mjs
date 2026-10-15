@@ -208,33 +208,62 @@ try{
  assert(Object.values(capSheet).every(Boolean),
    'Ataque lateral ou remocao de escudo incorreta: '+JSON.stringify(capSheet));
 
- // Regression do print: se o Capitao estiver a esquerda do Seiya, o
- // ataque deve apontar para a DIREITA; invertendo os lados, para a ESQUERDA.
+ // Regressao: o golpe escolhe o lado no PRIMEIRO frame e nao muda
+ // de direcao durante 8 frames, nem se Seiya passar para o outro lado.
+ // Ao terminar, o primeiro frame de descanso deve manter esse lado.
  const attackFacing=await page.evaluate(()=>{
    const sc=window.__ascensaoScene, e=sc.enemyList.find(enemy=>enemy.alive);
-   const backup={x:e.x,y:e.y,lastAttack:e.lastAttack,attackKind:e.attackKind,
-     attackUntil:e.attackUntil,faceLeft:e.faceLeft};
+   const fields=['x','y','lastAttack','attackKind','attackUntil','faceLeft','attackFaceLeft'];
+   const saved={};
+   for(const k of fields)saved[k]=e[k];
    const cases=[];
+   const playerX=sc.player.x;
    for(const side of ['enemyLeft','enemyRight']){
-     e.x=sc.player.x+(side==='enemyLeft'?-65:65);e.y=sc.player.y;
-     e.faceLeft=(side==='enemyLeft'); // Forca erro de orientacao inicial.
-     e.attackKind='kick';e.lastAttack=sc.simMs-90;e.attackUntil=sc.simMs+280;
-     sc.update(0,25);
-     cases.push({side,flip:e.sprite.flipX,faceLeft:e.faceLeft,
-       shieldAbsent:!('shield' in e),texture:e.sprite.texture.key});
+     const originallyLeft=side==='enemyRight';
+     e.x=playerX+(side==='enemyLeft'?-65:65);
+     e.y=sc.player.y;
+     e.lastAttack=-100000;
+     e.attackKind=null;e.attackUntil=0;
+     e.faceLeft=!originallyLeft; // estado inicial intencionalmente errado
+     e.attackFaceLeft=!originallyLeft;
+     sc.update(0,25); // inicia ataque real
+     const snapshots=[{
+       tick:0,kind:e.attackKind,flip:e.sprite.flipX,locked:e.attackFaceLeft,
+       key:e.sprite.texture.key
+     }];
+     // Simular troca de lado sem alterar a origem do ataque.
+     e.x=playerX+(side==='enemyLeft'?65:-65);
+     for(let tick=1;tick<=7;tick++){
+       sc.update(0,70);
+       snapshots.push({
+         tick,kind:e.attackKind,flip:e.sprite.flipX,locked:e.attackFaceLeft,
+         key:e.sprite.texture.key,frame:e.sprite.frame.name
+       });
+     }
+     e.x=playerX+(side==='enemyLeft'?-65:65);
+     sc.update(0,80); // encerra animacao e retorna ao idle
+     snapshots.push({
+       tick:8,kind:e.attackKind,flip:e.sprite.flipX,locked:e.attackFaceLeft,
+       key:e.sprite.texture.key
+     });
+     cases.push({side,originallyLeft,snapshots});
    }
-   Object.assign(e,backup);
+   for(const k of fields)e[k]=saved[k];
    e.sprite.setFlipX(e.faceLeft);
    return cases;
  });
- for(const value of attackFacing){
-   const expectedLeft=value.side==='enemyRight';
-   assert.equal(value.flip,expectedLeft,
-     'Capitao atacando de costas: '+JSON.stringify(attackFacing));
-   assert.equal(value.faceLeft,expectedLeft,
-     'Capitao nao acompanha Seiya durante ataque: '+JSON.stringify(attackFacing));
-   assert(value.shieldAbsent&&value.texture==='captainEnemyAttack',
-     'Escudo voltou ao ataque: '+JSON.stringify(attackFacing));
+ for(const test of attackFacing){
+   assert.equal(test.snapshots.length,9,'Numero incorreto de quadros do ataque');
+   for(const snapshot of test.snapshots){
+     assert.equal(snapshot.flip,test.originallyLeft,
+       'Capitao mudou lado NO MEIO do ataque: '+JSON.stringify(attackFacing));
+     assert.equal(snapshot.locked,test.originallyLeft,
+       'Direcao travada nao foi preservada: '+JSON.stringify(attackFacing));
+     assert.equal(snapshot.key,snapshot.tick===8?'captainEnemyIdle':'captainEnemyAttack',
+       'Textura incorreta na transicao ataque/idle: '+JSON.stringify(attackFacing));
+   }
+   assert.equal(test.snapshots[0].kind,'kick','Ataque nao foi iniciado');
+   assert.equal(test.snapshots[8].kind,null,'Ataque nao terminou no tempo previsto');
  }
 
  // A animacao unica de chute deve iniciar sem escudo em qualquer lado.
