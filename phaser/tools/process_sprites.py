@@ -128,43 +128,26 @@ def main():
     scale=min(2.5,max(1.0,(seiya_height*1.08)/max(1,captain_height)))
     print(f'ESCALA Capitao: Seiya={seiya_height}px Capitao-original={captain_height}px multiplicador={scale:.3f}')
     pack('captain_idle',[rows[0][0]],scale)
-    # O material-fonte NAO possui uma corrida completa: a sequencia antiga
-    # misturava vistas frontal/lateral/costas no mesmo ciclo, criando moonwalk.
-    # Utilizar somente os dois quadros de perfil voltados para a direita.
-    # O espelhamento lateral e controlado no Phaser pela velocidade real.
-    side_walk=[rows[0][4],rows[0][5]]
-    pack('captain_run',[side_walk[i%2] for i in range(8)],scale)
-    # ATAQUES EM PERFIL. A antiga linha 1 misturava pose frontal, e a
-    # linha 3 intercalava vistas de costas. flipX nao corrige a perspectiva
-    # de um corpo visto de frente: o Capitao parecia bater de costas no Seiya.
-    # Fonte lateral fiel: preparacao de perfil (linha 0) e golpe da linha 2,
-    # quarto sprite, cuja perna se estende para o lado DIREITO da tela.
-    # O Phaser espelha a sequencia inteira quando o alvo esta a esquerda.
-    side_guard = rows[0][4]
-    side_step = rows[0][5]
-    # O quarto sprite da linha 2 chuta para a ESQUERDA, embora os
-    # quadros de deslocamento estejam voltados para a DIREITA.
-    # Espelhar somente o golpe base alinha a perna ao alvo.
-    # O Phaser espelha o atlas inteiro para atacar para a esquerda.
-    side_strike = rows[2][3].transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-    attack_frames = [
-        side_guard, side_step, side_strike, side_strike,
-        side_strike, side_step, side_guard, side_guard,
+    # IMPORTANTE: o original [0][4] e [0][5] olha para a ESQUERDA.
+    # Todos os quadros exportados devem ter uma UNICA orientacao base:
+    # rosto/pes voltados para a DIREITA. O Phaser usa flipX apenas quando
+    # o deslocamento real ou o alvo esta a esquerda. A inversao incorreta
+    # da folha causava moonwalk apesar de faceLeft correto no codigo.
+    right_walk = [
+        rows[0][4].transpose(Image.Transpose.FLIP_LEFT_RIGHT),
+        rows[0][5].transpose(Image.Transpose.FLIP_LEFT_RIGHT),
     ]
-    shield_frames = [
-        side_guard, side_step, side_strike, side_strike,
-        side_strike, side_step, side_guard, side_guard,
-    ]
-    pack('captain_attack',attack_frames,scale)
-    pack('captain_shield_attack',shield_frames,scale)
-    # Escudo destacado da área inferior da folha, animado junto com o ataque.
-    shield=im.crop((0,586,36,619))
-    pix=shield.load()
-    for y in range(shield.height):
-      for x in range(shield.width):
-        if pix[x,y][:3]==BG:pix[x,y]=(0,0,0,0)
-    shield=shield.crop(shield.getbbox())
-    shield.save(PUBLIC/'enemy'/'captain_shield.png',optimize=True)
-    print('Sprites processados e alinhados com sucesso.')
+    pack('captain_run',[right_walk[i%2] for i in range(8)],scale)
+
+    # Golpes laterais com a mesma orientacao base da corrida. O chute
+    # original da linha 2 aponta para a esquerda; espelhar para a direita.
+    # SEM escudo: nenhum sprite/acessorio separado e gerado.
+    side_guard,side_step=right_walk
+    side_strike=rows[2][3].transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    pack('captain_attack',[
+        side_guard,side_step,side_strike,side_strike,
+        side_strike,side_step,side_guard,side_guard,
+    ],scale)
+    print('Capitao sem escudo: corrida e ataques voltados para a direita (orientacao base).')
 
 if __name__=='__main__':main()
