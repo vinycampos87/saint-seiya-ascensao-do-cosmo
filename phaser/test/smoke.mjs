@@ -194,6 +194,7 @@ try{
      ctx.drawImage(image,0,0);
      return {width:canvas.width,bytes:ctx.getImageData(0,0,canvas.width,canvas.height).data};
    };
+   const idle=read('captainEnemyIdle');
    const run=read('captainEnemyRun'),attack=read('captainEnemyAttack');
    const same=(a,ai,b,bi)=>{
      for(let y=0;y<128;y++)for(let x=0;x<128;x++)for(let channel=0;channel<4;channel++){
@@ -201,7 +202,7 @@ try{
      }
      return true;
    };
-   return {startMatchesRun:same(run,0,attack,0),strikeDifferent:!same(run,0,attack,3),
+   return {idleMatchesRun:same(idle,0,run,0),startMatchesRun:same(run,0,attack,0),strikeDifferent:!same(run,0,attack,3),
      eightFrames:attack.width===1024,
      noShieldTexture:!sc.textures.exists('captainShield')&&!sc.textures.exists('captainEnemyShieldAttack')};
  });
