@@ -7,14 +7,14 @@ export const FRAME_SIZE: Record<Stage, number> = { idle: 128, run: 128, attack1:
  * Mantém sprites completos em células, origem Phaser (.5,.875).
  */
 const ATLAS: Record<Stage, Record<Direction,number>> = {
- idle: {down:0,left:1,right:3,up:2},
+ idle: {down:0,left:3,right:1,up:2},
  run: {down:10,left:27,right:28,up:11},
- attack1: {down:18,left:21,right:19,up:17},
- attack2: {down:20,left:22,right:33,up:29},
- attack3: {down:6,left:23,right:31,up:30},
+ attack1: {down:18,left:21,right:33,up:17},
+ attack2: {down:20,left:31,right:25,up:29},
+ attack3: {down:6,left:22,right:19,up:30},
  '4a': {down:5,left:7,right:9,up:8},
- '4b': {down:24,left:26,right:25,up:32},
- '4c': {down:13,left:14,right:15,up:16},
+ '4b': {down:24,left:31,right:25,up:32},
+ '4c': {down:13,left:22,right:15,up:16},
  vfx: {down:35,left:37,right:36,up:34}
 };
 export function spriteKey(dir: Direction, stage: Stage): string {return `seiya_${dir}_${stage}`;}
