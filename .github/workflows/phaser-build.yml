@@ -46,6 +46,10 @@ jobs:
       - name: Publicar cliente Phaser compilado no GitHub Pages
         if: success()
         run: |
+          # Sincroniza com o HEAD atual antes de copiar a compilação;
+          # evita conflito de rebase no index.html em builds consecutivos.
+          git fetch origin main
+          git switch -C deploy-pages origin/main
           cp phaser/dist/index.html ./index.html
           mkdir -p bundles assets/enemy assets/scenes assets/seiya
           cp -a phaser/dist/bundles/. bundles/
@@ -57,8 +61,6 @@ jobs:
           git add index.html bundles assets/enemy assets/scenes assets/seiya
           if ! git diff --cached --quiet; then
             git commit -m "deploy(phaser): cliente original testado v0.7 [skip ci]"
-            git fetch origin main
-            git rebase origin/main
             git push origin HEAD:main
           fi
       - name: Guardar evidência da versão Phaser
