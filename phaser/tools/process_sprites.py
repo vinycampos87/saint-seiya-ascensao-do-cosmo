@@ -142,7 +142,11 @@ def main():
     # O Phaser espelha a sequencia inteira quando o alvo esta a esquerda.
     side_guard = rows[0][4]
     side_step = rows[0][5]
-    side_strike = rows[2][3]
+    # O quarto sprite da linha 2 chuta para a ESQUERDA, embora os
+    # quadros de deslocamento estejam voltados para a DIREITA.
+    # Espelhar somente o golpe base alinha a perna ao alvo.
+    # O Phaser espelha o atlas inteiro para atacar para a esquerda.
+    side_strike = rows[2][3].transpose(Image.Transpose.FLIP_LEFT_RIGHT)
     attack_frames = [
         side_guard, side_step, side_strike, side_strike,
         side_strike, side_step, side_guard, side_guard,
