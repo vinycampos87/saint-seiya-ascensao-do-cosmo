@@ -10,6 +10,26 @@ try{
  await page.goto('http://127.0.0.1:4175/',{waitUntil:'networkidle',timeout:75000});
  await page.waitForFunction(()=>!!window.__ascensaoScene,{timeout:30000});
  await page.waitForTimeout(1300);
+ // A janela do jogo precisa ocupar o viewport inteiro. Não há quadros inferiores.
+ const layout=await page.evaluate(()=>{
+   const r=document.querySelector('.full-game').getBoundingClientRect();
+   const scene=document.querySelector('.battle-viewport').getBoundingClientRect();
+   const cn=document.querySelector('.phaser-host canvas').getBoundingClientRect();
+   return {viewport:[innerWidth,innerHeight],root:[r.width,r.height],scene:[scene.width,scene.height],
+     canvas:[cn.width,cn.height],oldPanels:document.querySelectorAll('.arena-lowerbar,.action-bar,.side,.instructions').length};
+ });
+ assert.deepEqual(layout.root,layout.viewport,'Jogo não ocupa a janela inteira');
+ assert.deepEqual(layout.scene,layout.viewport,'Arena não ocupa a janela inteira');
+ assert(layout.canvas[0]>=layout.viewport[0]-2 && layout.canvas[1]>=layout.viewport[1]-2,
+  'Canvas não cobre a janela: '+JSON.stringify(layout));
+ assert.equal(layout.oldPanels,0,'Existem painéis antigos ocupando espaço');
+ const toggle=page.locator('#menuToggle');
+ await toggle.click();
+ await page.locator('#gameMenu').waitFor({state:'visible'});
+ assert.equal(await toggle.getAttribute('aria-expanded'),'true');
+ await toggle.click();
+ await page.locator('#gameMenu').waitFor({state:'detached'});
+ assert.equal(await toggle.getAttribute('aria-expanded'),'false');
  const boot=await page.evaluate(()=>{
   const sc=window.__ascensaoScene,p=sc.player;
   return {active:sc.scene.isActive(),x:p.x,y:p.y,origin:[p.originX,p.originY],
@@ -45,13 +65,37 @@ try{
  await page.evaluate(()=>{for(let i=0;i<15;i++)window.__ascensaoScene.update(0,55);});
  const meteor=await page.evaluate(()=>({phase:window.__ascensaoScene.phase,key:window.__ascensaoScene.player.texture.key,vfx:window.__ascensaoScene.vfxSprite.visible}));
  assert(meteor.phase==='4b'&&meteor.key==='seiya_down_4b'&&meteor.vfx,'Meteoro de Pégaso não disparou: '+JSON.stringify(meteor));
- await page.evaluate(()=>{const sc=window.__ascensaoScene;sc.level=3;sc.xp=55;sc.drachmas=88;sc.enterInfirmary();});
- await page.waitForTimeout(100);
+ // Derrota REAL: inimigo encosta, HP vai a zero e overlay React recebe o estado.
+ await page.evaluate(()=>{
+   const sc=window.__ascensaoScene;
+   sc.level=3;sc.xp=55;sc.drachmas=88;sc.hp=6;
+   sc.attack=null;sc.meteor=null;sc.autoEnabled=false;
+   sc.lastHitMs=-999999;sc.simMs=15000;
+   const e=sc.enemyList.find(enemy=>enemy.alive);
+   e.x=sc.player.x+35;e.y=sc.player.y;
+   e.lastAttack=-999999;
+   sc.update(0,55);
+ });
+ await page.locator('#healBtn').waitFor({state:'visible',timeout:7000});
  let st=await page.evaluate(()=>({infirmary:window.__ascensaoScene.infirmary,level:window.__ascensaoScene.level,xp:window.__ascensaoScene.xp,drachmas:window.__ascensaoScene.drachmas}));
  assert(st.infirmary&&st.level===3&&st.xp===55&&st.drachmas===88,'Perda de progresso na derrota');
- await page.evaluate(()=>{const sc=window.__ascensaoScene;sc.healAtSanctuary();sc.returnToTraining();});
- st=await page.evaluate(()=>({infirmary:window.__ascensaoScene.infirmary,level:window.__ascensaoScene.level,xp:window.__ascensaoScene.xp,drachmas:window.__ascensaoScene.drachmas}));
- assert(!st.infirmary&&st.level===3&&st.xp===55&&st.drachmas===88,'Perda de progresso após tratamento');
+ const dialog=page.locator('[aria-label="Enfermaria do Santuário"]');
+ assert(await page.locator('.infirmary-modal').isVisible(),'Enfermaria não apareceu');
+ await page.locator('#healBtn').click();
+ await page.locator('#returnBtn').waitFor({state:'visible'});
+ await page.locator('#returnBtn').click();
+ await page.locator('.infirmary-modal').waitFor({state:'detached'});
+ st=await page.evaluate(()=>({infirmary:window.__ascensaoScene.infirmary,level:window.__ascensaoScene.level,xp:window.__ascensaoScene.xp,drachmas:window.__ascensaoScene.drachmas,active:window.__ascensaoScene.scene.isActive()}));
+ assert(!st.infirmary&&st.level===3&&st.xp===55&&st.drachmas===88&&st.active,'Retorno da enfermaria travou');
+ // Recarregar NA enfermaria não pode prender o usuário.
+ await page.evaluate(()=>window.__ascensaoScene.enterInfirmary());
+ await page.locator('#healBtn').waitFor({state:'visible'});
+ await page.reload({waitUntil:'networkidle'});
+ await page.waitForFunction(()=>!!window.__ascensaoScene);
+ await page.locator('#healBtn').waitFor({state:'visible'});
+ await page.locator('#healBtn').click();
+ await page.locator('#returnBtn').click();
+ await page.locator('.infirmary-modal').waitFor({state:'detached'});
  await page.reload({waitUntil:'networkidle'}); await page.waitForFunction(()=>!!window.__ascensaoScene);
  st=await page.evaluate(()=>({level:window.__ascensaoScene.level,xp:window.__ascensaoScene.xp,drachmas:window.__ascensaoScene.drachmas}));
  assert(st.level===3&&st.xp===55&&st.drachmas===88,'Salvamento não persistiu');
@@ -59,5 +103,5 @@ try{
  await page.screenshot({path:'test/output/phaser-v07.png',fullPage:true});
  assert.deepEqual(errors,[],'Erros JS: '+JSON.stringify(errors));
  assert.deepEqual(missing,[],'Requisições HTTP inválidas: '+JSON.stringify(missing));
- console.log('PASSOU: Phaser 3, React, cena 4K, sprites 4 direções, pivô fixo, Meteoro 4B e enfermaria/persistência.');
+ console.log('PASSOU: Phaser fullscreen, dropdown, HUD compacto, sprites 4 direções, Meteoro 4B, derrota real, enfermaria clicável e save.');
 }finally{await browser.close();}
