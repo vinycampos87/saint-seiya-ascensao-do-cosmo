@@ -346,11 +346,10 @@ export class TrainingScene extends Phaser.Scene {
       }
       const movedX=e.x-xBefore, movedY=e.y-yBefore;
       const moving=Math.hypot(movedX,movedY)>0.05;
-      if(attacking){
-        // TRAVA DE DIRECAO: durante todos os 8 frames do chute,
-        // NUNCA recalcular a orientacao pela posicao do Seiya.
-        // Mesmo se o jogador atravessar o Capitao, o golpe termina
-        // inteiro para o lado escolhido no inicio.
+      if(attacking || (e.attackKind!==null && !attacking)){
+        // Preservar o lado escolhido durante o ataque inteiro e na
+        // transicao de volta ao descanso. A direcao so podera mudar
+        // no proximo movimento/decisao, nunca entre quadros do chute.
         e.faceLeft=e.attackFaceLeft;
       }else if(moving && Math.abs(movedX)>0.05){
         e.faceLeft=movedX<0;
