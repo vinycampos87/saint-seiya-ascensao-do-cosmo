@@ -180,6 +180,74 @@ try{
  await page.keyboard.up('s');
  await page.evaluate(()=>window.__ascensaoScene.update(0,35));
  assert.equal(await page.evaluate(()=>window.__ascensaoScene.player.texture.key),'seiya_down_idle_clean','Parado não mantém baixo');
+ // Regressao visual: ataque e golpe com escudo NAO podem reutilizar
+ // quadros frontais / de costas. O primeiro quadro dos dois ataques
+ // deve ser o MESMO perfil da corrida; no terceiro ha um golpe lateral.
+ const capSheet=await page.evaluate(()=>{
+   const sc=window.__ascensaoScene;
+   const read=(key)=>{
+     const image=sc.textures.get(key).getSourceImage();
+     const canvas=document.createElement('canvas');
+     canvas.width=image.width;canvas.height=image.height;
+     const ctx=canvas.getContext('2d',{willReadFrequently:true});
+     ctx.drawImage(image,0,0);
+     return {width:canvas.width,bytes:ctx.getImageData(0,0,canvas.width,canvas.height).data};
+   };
+   const run=read('captainEnemyRun');
+   const basic=read('captainEnemyAttack');
+   const shield=read('captainEnemyShieldAttack');
+   const sameFrame=(a,ia,b,ib)=>{
+     if(a.width<128*(ia+1)||b.width<128*(ib+1))return false;
+     for(let y=0;y<128;y++)for(let x=0;x<128;x++)for(let c=0;c<4;c++){
+       if(a.bytes[(y*a.width+ia*128+x)*4+c]!==b.bytes[(y*b.width+ib*128+x)*4+c])return false;
+     }
+     return true;
+   };
+   return {
+     attackStartsSideways:sameFrame(run,0,basic,0),
+     shieldStartsSideways:sameFrame(run,0,shield,0),
+     strikeHasMovement:!sameFrame(run,0,basic,3),
+     shieldHasMovement:!sameFrame(run,0,shield,3),
+     eightFrames:basic.width===1024&&shield.width===1024,
+   };
+ });
+ assert(Object.values(capSheet).every(Boolean),
+   'Atlas de ataque ainda contem vistas frontais ou poses estaticas: '+JSON.stringify(capSheet));
+
+ // Regression do print: se o Capitao estiver a esquerda do Seiya, o
+ // ataque deve apontar para a DIREITA; invertendo os lados, para a ESQUERDA.
+ const attackFacing=await page.evaluate(()=>{
+   const sc=window.__ascensaoScene, e=sc.enemyList.find(enemy=>enemy.alive);
+   const backup={x:e.x,y:e.y,lastAttack:e.lastAttack,attackKind:e.attackKind,
+     attackUntil:e.attackUntil,faceLeft:e.faceLeft,attackCount:e.attackCount};
+   const cases=[];
+   for(const kind of ['punch','shield']){
+     for(const side of ['enemyLeft','enemyRight']){
+       e.x=sc.player.x+(side==='enemyLeft'?-65:65);e.y=sc.player.y;
+       // Comeca com a direcao propositalmente errada para confirmar correcao.
+       e.faceLeft=(side==='enemyLeft');
+       e.attackKind=kind;e.lastAttack=sc.simMs-90;e.attackUntil=sc.simMs+280;
+       sc.update(0,25);
+       cases.push({kind,side,flip:e.sprite.flipX,shieldFlip:e.shield.flipX,
+         faceLeft:e.faceLeft,visible:e.shield.visible,texture:e.sprite.texture.key});
+     }
+   }
+   Object.assign(e,backup);
+   e.sprite.setFlipX(e.faceLeft);
+   return cases;
+ });
+ for(const value of attackFacing){
+   const expectedLeft=value.side==='enemyRight';
+   assert.equal(value.flip,expectedLeft,
+     'Capitao atacando de costas: '+JSON.stringify(attackFacing));
+   assert.equal(value.faceLeft,expectedLeft,
+     'Face do Capitao nao acompanha Seiya durante ataque: '+JSON.stringify(attackFacing));
+   assert.equal(value.shieldFlip,expectedLeft,
+     'Escudo em direcao contraria ao alvo: '+JSON.stringify(attackFacing));
+   assert(value.visible&&value.texture===(value.kind==='shield'?'captainEnemyShieldAttack':'captainEnemyAttack'),
+     'Ataque ou escudo incorreto: '+JSON.stringify(attackFacing));
+ }
+
  // Confirmar ataque de Capitão América, com e sem escudo, sem alterar HP do jogador.
  await page.evaluate(()=>{
    const sc=window.__ascensaoScene;
