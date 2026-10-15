@@ -134,8 +134,25 @@ def main():
     # O espelhamento lateral e controlado no Phaser pela velocidade real.
     side_walk=[rows[0][4],rows[0][5]]
     pack('captain_run',[side_walk[i%2] for i in range(8)],scale)
-    pack('captain_attack',[rows[1][i] for i in range(8)],scale)
-    pack('captain_shield_attack',[rows[3][i] for i in range(8)],scale)
+    # ATAQUES EM PERFIL. A antiga linha 1 misturava pose frontal, e a
+    # linha 3 intercalava vistas de costas. flipX nao corrige a perspectiva
+    # de um corpo visto de frente: o Capitao parecia bater de costas no Seiya.
+    # Fonte lateral fiel: preparacao de perfil (linha 0) e golpe da linha 2,
+    # quarto sprite, cuja perna se estende para o lado DIREITO da tela.
+    # O Phaser espelha a sequencia inteira quando o alvo esta a esquerda.
+    side_guard = rows[0][4]
+    side_step = rows[0][5]
+    side_strike = rows[2][3]
+    attack_frames = [
+        side_guard, side_step, side_strike, side_strike,
+        side_strike, side_step, side_guard, side_guard,
+    ]
+    shield_frames = [
+        side_guard, side_step, side_strike, side_strike,
+        side_strike, side_step, side_guard, side_guard,
+    ]
+    pack('captain_attack',attack_frames,scale)
+    pack('captain_shield_attack',shield_frames,scale)
     # Escudo destacado da área inferior da folha, animado junto com o ataque.
     shield=im.crop((0,586,36,619))
     pix=shield.load()
