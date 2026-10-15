@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Gera atlas transparentes do Capitão América e os idle limpos do Seiya.
+Fonte dos sprites de Cap: sprite original 568x704 (War of the Gems) fornecido pelo usuário.
+Todas as células produzidas têm 128x128 e pivot (64,112).
+"""
+from __future__ import annotations
+from pathlib import Path
+from collections import deque
+from PIL import Image
+import sys
+
+ROOT=Path(__file__).resolve().parents[1]
+PUBLIC=ROOT/'public'/'assets'
+SOURCE=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT/'tools'/'captain_source.png'
+assert SOURCE.is_file(), f'Fonte ausente: {SOURCE}'
+BG=(186,254,202)
+PIVOT=(64,112)
+CELL=128
+
+def components_alpha(im:Image.Image):
+    a=im.getchannel('A')
+    w,h=im.size; pix=a.load()
+    seen=bytearray(w*h); out=[]
+    for y in range(h):
+      for x in range(w):
+        idx=y*w+x
+        if seen[idx] or pix[x,y]<30: continue
+        seen[idx]=1;stack=[(x,y)];part=[]
+        while stack:
+          xx,yy=stack.pop();part.append((xx,yy))
+          for nx,ny in ((xx-1,yy),(xx+1,yy),(xx,yy-1),(xx,yy+1),
+                         (xx-1,yy-1),(xx+1,yy+1),(xx-1,yy+1),(xx+1,yy-1)):
+            if 0<=nx<w and 0<=ny<h and not seen[ny*w+nx] and pix[nx,ny]>=30:
+              seen[ny*w+nx]=1;stack.append((nx,ny))
+        out.append(part)
+    return sorted(out,key=len,reverse=True)
+
+def clean_idle(dir,num):
+    source=Image.open(PUBLIC/f'atlas_{num:02}.png').convert('RGBA')
+    frame=source.crop((0,0,CELL,CELL))
+    # Descarta ilhas desconectadas que vieram da célula vizinha;
+    # conserva somente o corpo principal do Seiya.
+    comps=components_alpha(frame)
+    assert comps and len(comps[0])>100, f'atlas idle {dir} vazio'
+    main=set(comps[0])
+    px=frame.load()
+    for y in range(CELL):
+      for x in range(CELL):
+        if (x,y) not in main: px[x,y]=(0,0,0,0)
+    out=PUBLIC/'seiya_clean_idle';out.mkdir(parents=True,exist_ok=True)
+    frame.save(out/f'{dir}.png',optimize=True)
+    print(f'SEIYA idle {dir}: pixels={len(main)} fragmentos removidos={len(comps)-1}')
+
+def split_row(im:Image.Image,y0:int,y1:int):
+    src=im.convert('RGBA')
+    w,_=src.size
+    p=src.load()
+    cols=[]
+    for x in range(w):
+        cols.append(any(p[x,y][:3]!=BG for y in range(y0,y1+1)))
+    spans=[];start=None
+    for x,on in enumerate(cols+[False]):
+      if on and start is None:start=x
+      if not on and start is not None:
+        if x-start>=4:spans.append((start,x))
+        start=None
+    frames=[]
+    for x0,x1 in spans:
+      f=src.crop((x0,y0,x1,y1+1))
+      pix=f.load()
+      for yy in range(f.height):
+        for xx in range(f.width):
+          if pix[xx,yy][:3]==BG:pix[xx,yy]=(0,0,0,0)
+      bbox=f.getbbox()
+      if bbox:frames.append(f.crop(bbox))
+    return frames
+
+def pack(name,source_frames):
+    result=Image.new('RGBA',(CELL*len(source_frames),CELL),(0,0,0,0))
+    for index,f in enumerate(source_frames):
+      # Largura e altura diferentes no sheet original: recorta individualmente
+      # e preserva um envelope vazio de 10px em cada lado.
+      mul=min(1,108/max(1,f.height),108/max(1,f.width))
+      if mul<1:f=f.resize((round(f.width*mul),round(f.height*mul)),Image.Resampling.NEAREST)
+      anchor=(CELL-f.width)//2, PIVOT[1]-f.height
+      assert anchor[0]>=6 and anchor[1]>=4,(name,index,anchor,f.size)
+      result.alpha_composite(f,anchor[0:2] if False else anchor)
+    dst=PUBLIC/'enemy';dst.mkdir(parents=True,exist_ok=True)
+    target=dst/f'{name}.png'
+    result.save(target,optimize=True)
+    print(f'CAPTAIN {name}: {result.width}x{result.height}, frames={len(source_frames)}, size={target.stat().st_size}')
+
+def main():
+    for direction,num in {'down':0,'left':1,'right':3,'up':2}.items():
+      clean_idle(direction,num)
+    im=Image.open(SOURCE).convert('RGBA')
+    assert im.size==(568,704),f'Imagem de Capitão América inesperada: {im.size}'
+    # Faixas da imagem fornecida, separadas pelas linhas de fundo verde.
+    rows={0:split_row(im,9,95),1:split_row(im,107,191),
+          2:split_row(im,204,279),3:split_row(im,294,391)}
+    assert [len(rows[i]) for i in [0,1,2,3]]==[10,8,7,8], \
+      'Sprites desviaram do layout do original: '+str([len(rows[i]) for i in rows])
+    pack('captain_idle',[rows[0][0]])
+    pack('captain_run',[rows[0][i] for i in [4,5,6,7,8,9,7,5]])
+    pack('captain_attack',[rows[1][i] for i in range(8)])
+    pack('captain_shield_attack',[rows[3][i] for i in range(8)])
+    # Escudo destacado da área inferior da folha, animado junto com o ataque.
+    shield=im.crop((0,586,36,619))
+    pix=shield.load()
+    for y in range(shield.height):
+      for x in range(shield.width):
+        if pix[x,y][:3]==BG:pix[x,y]=(0,0,0,0)
+    shield=shield.crop(shield.getbbox())
+    shield.save(PUBLIC/'enemy'/'captain_shield.png',optimize=True)
+    print('Sprites processados e alinhados com sucesso.')
+
+if __name__=='__main__':main()
