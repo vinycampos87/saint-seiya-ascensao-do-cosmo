@@ -91,7 +91,8 @@ def pack(name,source_frames,scale):
       # Escala uniforme partindo da altura do Seiya. Limite de 108 px
       # na celula protege cabelo, punhos e botas sem variar pivô.
       mul=min(scale,108/max(1,f.height),108/max(1,f.width))
-      if mul<1:f=f.resize((round(f.width*mul),round(f.height*mul)),Image.Resampling.NEAREST)
+      if abs(mul-1)>0.001:
+        f=f.resize((max(1,round(f.width*mul)),max(1,round(f.height*mul))),Image.Resampling.NEAREST)
       anchor=(CELL-f.width)//2, PIVOT[1]-f.height
       assert anchor[0]>=6 and anchor[1]>=4,(name,index,anchor,f.size)
       # O deslocamento de cada frame e obrigatorio. Sem index*CELL,
