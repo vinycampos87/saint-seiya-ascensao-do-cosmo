@@ -349,12 +349,17 @@ export class TrainingScene extends Phaser.Scene {
       }
       const movedX=e.x-xBefore, movedY=e.y-yBefore;
       const moving=Math.hypot(movedX,movedY)>0.05;
-      if(moving && Math.abs(movedX)>0.05){
+      if(attacking){
+        // O Capitao interrompe a marcha ao atacar e deve mirar o Seiya,
+        // inclusive quando o jogador atravessa para o outro lado do golpe.
+        // Um flip na imagem frontal nao corrige isso; o atlas de ataque
+        // agora contem SOMENTE poses laterais olhando para a direita.
+        if(Math.abs(diff.x)>4)e.faceLeft=diff.x<0;
+      }else if(moving && Math.abs(movedX)>0.05){
         e.faceLeft=movedX<0;
-      }else if(!moving && !attacking && Math.abs(diff.x)>4){
+      }else if(!moving && Math.abs(diff.x)>4){
         e.faceLeft=diff.x<0;
       }
-      // Durante o golpe a orientacao fica travada ate terminar a animacao.
       e.sprite.setFlipX(e.faceLeft);
       if(attacking){
         const age=Math.max(0,time-e.lastAttack);
