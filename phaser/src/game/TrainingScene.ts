@@ -13,7 +13,7 @@ export type GameSnapshot = {
 };
 
 export type SceneSettings = { auto: boolean; vfx: boolean; debug: boolean };
-type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number; attackKind: 'kick' | null; attackUntil: number; faceLeft: boolean };
+type Enemy = { sprite: Phaser.GameObjects.Sprite; x: number; y: number; hp: number; maxHp: number; lastAttack: number; slowed: number; alive: boolean; radius: number; hitUntil: number; wanderOffset: number; attackKind: 'kick' | null; attackUntil: number; faceLeft: boolean; attackFaceLeft: boolean };
 type Phase = 'idle' | 'run' | 'attack1' | 'attack2' | 'attack3' | '4a' | '4b' | '4c' | 'hurt' | 'dead';
 type AttackData = { stage: 'attack1' | 'attack2' | 'attack3'; start: number; applied: boolean; duration: number; hitAt: number; dir: Direction };
 type MeteorData = { start: number; dir: Direction; hitUntil: number; lastHit: number; totalTicks: number };
@@ -150,7 +150,7 @@ export class TrainingScene extends Phaser.Scene {
     // Com flipX = true, o Capitao passa a olhar para a ESQUERDA.
     const faceLeft = x > this.player.x;
     sprite.setFlipX(faceLeft);
-    this.enemyList.push({sprite,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackUntil:0,faceLeft});
+    this.enemyList.push({sprite,x,y,hp:90,maxHp:90,lastAttack:-9999,slowed:0,alive:true,radius:ENEMY_RADIUS,hitUntil:0,wanderOffset:seed*123,attackKind:null,attackUntil:0,faceLeft,attackFaceLeft:faceLeft});
   }
 
   private blocked(x:number,y:number,r:number):boolean {
@@ -347,11 +347,11 @@ export class TrainingScene extends Phaser.Scene {
       const movedX=e.x-xBefore, movedY=e.y-yBefore;
       const moving=Math.hypot(movedX,movedY)>0.05;
       if(attacking){
-        // O Capitao interrompe a marcha ao atacar e deve mirar o Seiya,
-        // inclusive quando o jogador atravessa para o outro lado do golpe.
-        // Um flip na imagem frontal nao corrige isso; o atlas de ataque
-        // agora contem SOMENTE poses laterais olhando para a direita.
-        if(Math.abs(diff.x)>4)e.faceLeft=diff.x<0;
+        // TRAVA DE DIRECAO: durante todos os 8 frames do chute,
+        // NUNCA recalcular a orientacao pela posicao do Seiya.
+        // Mesmo se o jogador atravessar o Capitao, o golpe termina
+        // inteiro para o lado escolhido no inicio.
+        e.faceLeft=e.attackFaceLeft;
       }else if(moving && Math.abs(movedX)>0.05){
         e.faceLeft=movedX<0;
       }else if(!moving && Math.abs(diff.x)>4){
@@ -368,12 +368,19 @@ export class TrainingScene extends Phaser.Scene {
         if(e.sprite.texture.key!==key)e.sprite.setTexture(key,0);
         e.sprite.setFrame(moving?Math.floor(time/105+e.wanderOffset)%8:0);
       }
-      if(d<=84&&time-e.lastAttack>1650&&!this.meteor){
-        if(Math.abs(diff.x)>4)e.faceLeft=diff.x<0;
-        e.sprite.setFlipX(e.faceLeft);
+      if(!attacking&&d<=84&&time-e.lastAttack>1650&&!this.meteor){
+        // O alvo e escolhido SOMENTE no primeiro frame do ataque.
+        // No caso de alinhamento vertical mantemos o ultimo lado,
+        // evitando inversoes repentinas perto do eixo central.
+        const lockedFacing=Math.abs(diff.x)>4 ? diff.x<0 : e.faceLeft;
+        e.faceLeft=lockedFacing;
+        e.attackFaceLeft=lockedFacing;
+        e.sprite.setFlipX(lockedFacing);
         e.lastAttack=time;
         e.attackKind='kick';
         e.attackUntil=time+560;
+        // Comecar imediatamente no frame inicial do golpe, ja orientado.
+        e.sprite.setTexture('captainEnemyAttack',0);
         if(time-this.lastHitMs>530){
           this.hp=applyDamage(this.hp,8,MAX_HP);this.lastHitMs=time;
           this.lastAction=this.hp===0?'Seiya caiu. A enfermaria do Santuário o receberá.':'Seiya recebeu 8 de dano.';
