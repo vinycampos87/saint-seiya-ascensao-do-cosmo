@@ -26,7 +26,12 @@ jobs:
           # Arquivo original fornecido pelo usuário deve estar no repositório.
           # Não recorrer a espelhos que possam entregar um sprite diferente.
           if [ ! -s phaser/tools/captain_source.png ]; then
-            echo "::error::Adicione a imagem original em phaser/tools/captain_source.png"
+            # Também aceita o nome original do arquivo anexado, sem renomear.
+            find phaser/tools -maxdepth 1 -iname '*Captain America*.png' -print -quit \
+              | while IFS= read -r source; do cp "$source" phaser/tools/captain_source.png; done
+          fi
+          if [ ! -s phaser/tools/captain_source.png ]; then
+            echo "::error::Falta o PNG original do Capitão América na pasta phaser/tools"
             exit 1
           fi
           python3 -c "import struct; d=open('phaser/tools/captain_source.png','rb').read(); assert d[:8]==bytes([137,80,78,71,13,10,26,10]) and struct.unpack('>II',d[16:24])==(568,704), 'Imagem incorreta, esperada PNG 568x704'"
