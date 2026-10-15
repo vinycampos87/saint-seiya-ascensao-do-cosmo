@@ -124,10 +124,9 @@ def main():
     seiya_box=seiya.getbbox()
     assert seiya_box is not None
     seiya_height=seiya_box[3]-seiya_box[1]
-    captain_height=rows[0][0].height
+    captain_height=rows[0][4].height
     scale=min(2.5,max(1.0,(seiya_height*1.08)/max(1,captain_height)))
     print(f'ESCALA Capitao: Seiya={seiya_height}px Capitao-original={captain_height}px multiplicador={scale:.3f}')
-    pack('captain_idle',[rows[0][0]],scale)
     # IMPORTANTE: o original [0][4] e [0][5] olha para a ESQUERDA.
     # Todos os quadros exportados devem ter uma UNICA orientacao base:
     # rosto/pes voltados para a DIREITA. O Phaser usa flipX apenas quando
@@ -137,6 +136,9 @@ def main():
         rows[0][4].transpose(Image.Transpose.FLIP_LEFT_RIGHT),
         rows[0][5].transpose(Image.Transpose.FLIP_LEFT_RIGHT),
     ]
+    # O descanso tambem deve ser de PERFIL, nunca um quadro frontal.
+    # Assim o personagem nao muda de perspectiva no fim do golpe.
+    pack('captain_idle',[right_walk[0]],scale)
     pack('captain_run',[right_walk[i%2] for i in range(8)],scale)
 
     # Golpes laterais com a mesma orientacao base da corrida. O chute
