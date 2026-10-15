@@ -107,6 +107,13 @@ export class TrainingScene extends Phaser.Scene {
     kb.on('keydown-H', () => this.toggleDebug());
     kb.on('keydown-R', () => this.restartBattle());
     kb.on('keydown-ESC', () => this.togglePause());
+    // Recuperação independente do loop de update; ENTER também funciona sem mouse.
+    kb.on('keydown-ENTER', (event: KeyboardEvent) => {
+      if (!this.infirmary) return;
+      event.preventDefault();
+      if (this.healed) this.returnToTraining();
+      else this.healAtSanctuary();
+    });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (p.leftButtonDown()) this.tryAttack();
     });
@@ -351,7 +358,7 @@ export class TrainingScene extends Phaser.Scene {
   public toggleAuto():void{if(this.infirmary)return;this.autoEnabled=!this.autoEnabled;this.lastAction=this.autoEnabled?'Combate automático ativado.':'Controle manual ativado.';this.publish(true);}
   public toggleVfx():void{this.vfxEnabled=!this.vfxEnabled;if(!this.vfxEnabled)this.vfxSprite.setVisible(false);this.publish(true);}
   public toggleDebug():void{this.debugEnabled=!this.debugEnabled;this.publish(true);}
-  public togglePause():void{this.isPaused=!this.isPaused;this.lastAction=this.isPaused?'Jogo pausado.':'Jogo retomado.';this.publish(true);}
+  public togglePause():void{if(this.infirmary)return;this.isPaused=!this.isPaused;this.lastAction=this.isPaused?'Jogo pausado.':'Jogo retomado.';this.publish(true);}
   private currentProgress(): PlayerProgress {
     return { version: 4, level: this.level, xp: this.xp, kills: this.kills,
       drachmas: this.drachmas, hp: this.hp, cosmo: this.cosmo,
@@ -377,7 +384,7 @@ export class TrainingScene extends Phaser.Scene {
     if(this.infirmary) return;
     this.applyProgress(onDefeat(this.currentProgress()));
     this.attack=null; this.meteor=null; this.vfxSprite.setVisible(false);
-    this.autoEnabled=false; this.setPhase('dead');
+    this.autoEnabled=false; this.isPaused=false; this.virtualMovement={x:0,y:0}; this.setPhase('dead');
     this.lastAction='Seiya foi levado à enfermaria. Sua evolução está protegida.';
     this.storeProgress(); this.publish(true);
   }
