@@ -108,7 +108,7 @@ def pack(name,source_frames,scale):
     print(f'CAPTAIN {name}: {result.width}x{result.height}, frames={len(source_frames)}, size={target.stat().st_size}')
 
 def main():
-    for direction,num in {'down':0,'left':1,'right':3,'up':2}.items():
+    for direction,num in {'down':0,'left':3,'right':1,'up':2}.items():
       clean_idle(direction,num)
     im=Image.open(SOURCE).convert('RGBA')
     assert im.size==(568,704),f'Imagem de Capitão América inesperada: {im.size}'
