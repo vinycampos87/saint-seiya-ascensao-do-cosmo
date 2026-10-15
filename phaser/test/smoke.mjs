@@ -234,17 +234,19 @@ try{
      }];
      // Simular troca de lado sem alterar a origem do ataque.
      e.x=playerX+(side==='enemyLeft'?65:-65);
-     for(let tick=1;tick<=7;tick++){
-       sc.update(0,70);
+     for(let tick=1;tick<=10;tick++){
+       // O jogo limita delta a 55 ms por update: 10 ticks percorrem
+       // os oito quadros de 70 ms antes da finalizacao aos 560 ms.
+       sc.update(0,55);
        snapshots.push({
          tick,kind:e.attackKind,flip:e.sprite.flipX,locked:e.attackFaceLeft,
          key:e.sprite.texture.key,frame:e.sprite.frame.name
        });
      }
      e.x=playerX+(side==='enemyLeft'?-65:65);
-     sc.update(0,80); // encerra animacao e retorna ao idle
+     sc.update(0,55); // encerra animacao e retorna ao idle
      snapshots.push({
-       tick:8,kind:e.attackKind,flip:e.sprite.flipX,locked:e.attackFaceLeft,
+       tick:11,kind:e.attackKind,flip:e.sprite.flipX,locked:e.attackFaceLeft,
        key:e.sprite.texture.key
      });
      cases.push({side,originallyLeft,snapshots});
@@ -254,17 +256,17 @@ try{
    return cases;
  });
  for(const test of attackFacing){
-   assert.equal(test.snapshots.length,9,'Numero incorreto de quadros do ataque');
+   assert.equal(test.snapshots.length,12,'Numero incorreto de verificacoes do ataque');
    for(const snapshot of test.snapshots){
      assert.equal(snapshot.flip,test.originallyLeft,
        'Capitao mudou lado NO MEIO do ataque: '+JSON.stringify(attackFacing));
      assert.equal(snapshot.locked,test.originallyLeft,
        'Direcao travada nao foi preservada: '+JSON.stringify(attackFacing));
-     assert.equal(snapshot.key,snapshot.tick===8?'captainEnemyIdle':'captainEnemyAttack',
+     assert.equal(snapshot.key,snapshot.tick===11?'captainEnemyIdle':'captainEnemyAttack',
        'Textura incorreta na transicao ataque/idle: '+JSON.stringify(attackFacing));
    }
    assert.equal(test.snapshots[0].kind,'kick','Ataque nao foi iniciado');
-   assert.equal(test.snapshots[8].kind,null,'Ataque nao terminou no tempo previsto');
+   assert.equal(test.snapshots[11].kind,null,'Ataque nao terminou no tempo previsto');
  }
 
  // A animacao unica de chute deve iniciar sem escudo em qualquer lado.
