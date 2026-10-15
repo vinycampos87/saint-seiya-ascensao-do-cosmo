@@ -79,6 +79,70 @@ try{
         manifest.includes("'4c': {down:13,left:22,right:15,up:16}"),
     'Um ataque lateral voltou a usar atlas invertido ou com membros fantasma');
 
+ // Regressao do moonwalk: a direcao do Capitao segue a distancia PERCORRIDA
+ // e o escudo acompanha o flip, tanto na persecucao como no descanso.
+ const captainDirection=await page.evaluate(()=>{
+   const sc=window.__ascensaoScene, e=sc.enemyList.find(enemy=>enemy.alive);
+   const prev={x:e.x,y:e.y,lastAttack:e.lastAttack,attackKind:e.attackKind,
+     attackUntil:e.attackUntil,faceLeft:e.faceLeft};
+   e.lastAttack=sc.simMs+100000;
+   e.attackKind=null;e.attackUntil=0;
+   const test=(x,y)=>{
+     e.x=x;e.y=y;
+     const before=e.x;
+     sc.update(0,40);
+     return {dx:e.x-before,flip:e.sprite.flipX,faceLeft:e.faceLeft,
+       shieldFlip:e.shield.flipX,visible:e.shield.visible,key:e.sprite.texture.key};
+   };
+   const toLeft=test(sc.player.x+230,sc.player.y);
+   const toRight=test(sc.player.x-230,sc.player.y);
+   const idleLeft=test(sc.player.x+55,sc.player.y);
+   const idleRight=test(sc.player.x-55,sc.player.y);
+   e.x=prev.x;e.y=prev.y;e.lastAttack=prev.lastAttack;
+   e.attackKind=prev.attackKind;e.attackUntil=prev.attackUntil;
+   e.faceLeft=prev.faceLeft;
+   e.sprite.setFlipX(e.faceLeft);
+   return {toLeft,toRight,idleLeft,idleRight};
+ });
+ assert(captainDirection.toLeft.dx<-.1&&captainDirection.toLeft.flip&&
+        captainDirection.toLeft.faceLeft&&captainDirection.toLeft.shieldFlip&&
+        captainDirection.toLeft.visible&&captainDirection.toLeft.key==='captainEnemyRun',
+    'Capitao caminhou para esquerda de costas: '+JSON.stringify(captainDirection));
+ assert(captainDirection.toRight.dx>.1&&!captainDirection.toRight.flip&&
+        !captainDirection.toRight.faceLeft&&!captainDirection.toRight.shieldFlip&&
+        captainDirection.toRight.visible&&captainDirection.toRight.key==='captainEnemyRun',
+    'Capitao caminhou para direita de costas: '+JSON.stringify(captainDirection));
+ assert(captainDirection.idleLeft.flip&&captainDirection.idleLeft.shieldFlip&&
+        captainDirection.idleLeft.key==='captainEnemyIdle'&&
+        !captainDirection.idleRight.flip&&!captainDirection.idleRight.shieldFlip&&
+        captainDirection.idleRight.key==='captainEnemyIdle',
+    'Capitao virou para lado errado ao parar: '+JSON.stringify(captainDirection));
+
+ // Todos os 8 quadros de corrida precisam manter perfil CONSISTENTE.
+ // A folha antiga alternava perfis/frente/costas no meio do ciclo.
+ const runSheetQA=await page.evaluate(()=>{
+   const sc=window.__ascensaoScene;
+   const im=sc.textures.get('captainEnemyRun').getSourceImage();
+   const cv=document.createElement('canvas');
+   cv.width=im.width;cv.height=im.height;
+   const c=cv.getContext('2d',{willReadFrequently:true});c.drawImage(im,0,0);
+   const rgba=c.getImageData(0,0,cv.width,cv.height).data;
+   const width=128,height=128, mismatches=[];
+   for(let f=2;f<8;f++){
+     const source=f%2;
+     let different=0;
+     for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+       const a=(y*cv.width+f*width+x)*4;
+       const b=(y*cv.width+source*width+x)*4;
+       for(let channel=0;channel<4;channel++)if(rgba[a+channel]!==rgba[b+channel])different++;
+     }
+     mismatches.push(different);
+   }
+   return {frames:cv.width/128,mismatches};
+ });
+ assert(runSheetQA.frames===8&&runSheetQA.mismatches.every(n=>n===0),
+   'Corrida mistura poses com orientacoes inconsistentes: '+JSON.stringify(runSheetQA));
+
  await page.keyboard.down('d'); await page.waitForTimeout(150);
  await page.evaluate(()=>{for(let i=0;i<12;i++)window.__ascensaoScene.update(0,50);});
  let v=await page.evaluate(()=>({x:window.__ascensaoScene.player.x,dir:window.__ascensaoScene.facing,key:window.__ascensaoScene.player.texture.key}));
