@@ -17,14 +17,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Restaurar atlas originais, cenário e retrato
+      - name: Restaurar atlas, fundo 4K e imagem original do Capitão América
         run: |
-          mkdir -p phaser/public/assets/seiya phaser/public/assets/enemy phaser/public/assets/scenes
+          mkdir -p phaser/public/assets/seiya phaser/public/assets/enemy phaser/public/assets/scenes phaser/tools
           cp assets/atlas_*.png phaser/public/assets/
-          cp assets/enemy.png phaser/public/assets/enemy/training_enemy.png
           cp assets/arena_4k.webp phaser/public/assets/scenes/arena_santuario_4k.webp
           cp assets/atlas_04.png phaser/public/assets/seiya/portrait.png
-          test "$(find phaser/public/assets -name '*.png' | wc -l)" -ge 39
+          curl --fail --location --retry 4 --retry-delay 2 --max-time 45 \
+            --user-agent 'Mozilla/5.0 (compatible; SanctuarySpriteBuilder/1.0)' \
+            'https://www.spriters-resource.com/resources/sheets/29/32123.png?updated=1460956361' \
+            --output phaser/tools/captain_source.png
+          python3 -m pip install --quiet pillow
+          python3 phaser/tools/process_sprites.py phaser/tools/captain_source.png
+          test -s phaser/public/assets/enemy/captain_run.png
+          test -s phaser/public/assets/enemy/captain_attack.png
+          test -s phaser/public/assets/enemy/captain_shield_attack.png
+          test -s phaser/public/assets/seiya_clean_idle/left.png
       - name: Instalar Phaser, React e Vite
         working-directory: phaser
         run: npm install --no-audit --no-fund
@@ -51,16 +59,18 @@ jobs:
           git fetch origin main
           git switch -C deploy-pages origin/main
           cp phaser/dist/index.html ./index.html
-          mkdir -p bundles assets/enemy assets/scenes assets/seiya
+          mkdir -p bundles assets/enemy assets/scenes assets/seiya assets/seiya_clean_idle
           cp -a phaser/dist/bundles/. bundles/
-          cp phaser/public/assets/enemy/training_enemy.png assets/enemy/training_enemy.png
+          cp phaser/public/assets/enemy/captain_*.png assets/enemy/
+          cp phaser/public/assets/seiya_clean_idle/*.png assets/seiya_clean_idle/
           cp phaser/public/assets/scenes/arena_santuario_4k.webp assets/scenes/arena_santuario_4k.webp
           cp phaser/public/assets/seiya/portrait.png assets/seiya/portrait.png
+          git rm -f assets/enemy/training_enemy.png || true
           git config user.name "saint-seiya-build-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html bundles assets/enemy assets/scenes assets/seiya
+          git add index.html bundles assets/enemy assets/scenes assets/seiya assets/seiya_clean_idle
           if ! git diff --cached --quiet; then
-            git commit -m "deploy(phaser): cliente original testado v0.7 [skip ci]"
+            git commit -m "deploy(phaser): sprites Seiya/Capitao v0.9 testados [skip ci]"
             git push origin HEAD:main
           fi
       - name: Guardar evidência da versão Phaser
